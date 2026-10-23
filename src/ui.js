@@ -24,6 +24,9 @@ import { smsUri, isIos } from "./sms.js";
 const IN_APP_BROWSER =
   typeof navigator !== "undefined" &&
   /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(navigator.userAgent || "");
+// Viber's browser on Android doesn't name itself: its user agent is the plain WebView one (seen on a
+// Pixel with Viber 29.2). The kontrolori share the link on Viber, so any Android web view that
+// isn't a known other app counts as Viber's.
 const VIBER =
   typeof navigator !== "undefined" &&
   (/Viber/i.test(navigator.userAgent || "") ||
@@ -622,7 +625,6 @@ function InAppBrowserWarning() {
       ${VIBER
         ? html`<${ViberMenuSteps} />`
         : html`<div>Ako se ništa ne desi: meni ⋮ → Otvori u pregledniku.</div>`}
-      <div style="font-size:0.75rem;font-weight:400;margin-top:0.5rem">${navigator.userAgent}</div>
     </div>
   `;
 }
@@ -637,11 +639,13 @@ function ViberMenuSteps() {
       <ol>
         <li>
           Gore desno na ekranu nađi tri ljubičaste tačke:
-          <svg class="viber-menu-dots" viewBox="0 0 11 42" role="img" aria-label="tri ljubičaste tačke">
-            <circle cx="5.5" cy="5.5" r="5.5" />
-            <circle cx="5.5" cy="21" r="5.5" />
-            <circle cx="5.5" cy="36.5" r="5.5" />
-          </svg>
+          <span class="viber-menu-chip">
+            <svg class="viber-menu-dots" viewBox="0 0 11 42" role="img" aria-label="tri ljubičaste tačke">
+              <circle cx="5.5" cy="5.5" r="5.5" />
+              <circle cx="5.5" cy="21" r="5.5" />
+              <circle cx="5.5" cy="36.5" r="5.5" />
+            </svg>
+          </span>
         </li>
         <li>Dodirni ih. Otvoriće se meni.</li>
         <li>U meniju dodirni „Otvori u spoljašnjem pretraživaču“ (na engleskom: „Open in external browser“).</li>

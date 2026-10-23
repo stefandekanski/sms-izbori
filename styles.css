@@ -169,13 +169,8 @@ body {
   text-decoration: none;
 }
 
-/* On the page's own colors, so the purple dots show the same in light and dark mode. */
 .in-app-steps {
   margin-top: 0.75rem;
-  padding: 0.75rem;
-  background-color: var(--surface);
-  color: var(--on-surface);
-  border-radius: 0.75rem; /* 12px */
   text-align: left;
 }
 
@@ -188,11 +183,20 @@ body {
   margin-top: 0.5rem;
 }
 
+/* Only the dots sit on the page's own colors, where the purple shows in light and dark mode. */
+.viber-menu-chip {
+  display: block;
+  width: fit-content;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background-color: var(--surface);
+  border-radius: 0.5rem;
+}
+
 .viber-menu-dots {
   display: block;
-  height: 2.5rem; /* 40px */
+  height: 2.25rem; /* 36px */
   width: auto;
-  margin: 0.5rem 0 0 0.5rem;
   fill: #7360f2; /* Viber's purple */
 }
 
