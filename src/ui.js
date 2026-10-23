@@ -283,6 +283,7 @@ function SetupScreen({ app, profile, storageFailed }) {
       : null}
 
     <main class="content-scroll">
+      <${InAppBrowserWarning} />
       <div>Upiši ovo jednom. Posle svako javljanje ide jednim dodirom.</div>
 
       <${SetupField}
@@ -570,13 +571,28 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
   `;
 }
 
-/** Warning banner shown inside web views of social networks. */
+/** Warning banner shown inside web views of social networks. On Android its button hands the
+ * page to Chrome through an intent: link; whether the app lets that through is up to the app. */
 function InAppBrowserWarning() {
   if (!IN_APP_BROWSER) return null;
 
+  if (isIos(navigator)) {
+    return html`
+      <div class="in-app-warning" role="alert">
+        Bolje otvori ovu stranicu u Chrome-u ili Safariju (meni ⋮ → Otvori u pregledniku): ovaj preglednik čuva upisane podatke odvojeno od njih.
+      </div>
+    `;
+  }
+
+  const scheme = location.protocol.replace(":", "");
+  const inChrome =
+    `intent://${location.host}${location.pathname}#Intent;scheme=${scheme};` +
+    `package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
   return html`
     <div class="in-app-warning" role="alert">
-      Bolje otvori ovu stranicu u Chrome-u ili Safariju (meni ⋮ → Otvori u pregledniku): ovaj preglednik čuva upisane podatke odvojeno od njih.
+      <div>Bolje otvori ovu stranicu u Chrome-u: ovaj preglednik čuva upisane podatke odvojeno i ne otvara imenik.</div>
+      <a class="in-app-open" href=${inChrome}>Otvori u Chrome-u</a>
+      <div>Ako se ništa ne desi: meni ⋮ → Otvori u pregledniku.</div>
     </div>
   `;
 }

@@ -153,6 +153,21 @@ body {
   text-align: center;
 }
 
+.in-app-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem; /* 48px */
+  margin: 0.5rem 0;
+  padding: 0.5rem 1rem;
+  background-color: var(--on-error);
+  color: var(--error);
+  border-radius: 1.5rem; /* 24px */
+  font-size: 1.125rem; /* 18px */
+  font-weight: 600;
+  text-decoration: none;
+}
+
 /* Install hint card */
 .install-card {
   display: flex;
