@@ -8,4 +8,4 @@ Instalira se pravo iz pretraživača, bez prodavnice aplikacija, i ništa ne ša
 
 Običan statički sajt, bez build koraka: `index.html`, moduli u `src/`, Preact sa htm u `vendor/`. Testovi logike: `deno run --allow-read test/run.js`.
 
-Projekat je napravljen uz pomoć AI alata: Claude Opus 5.5 i Gemini 3.8 Flash.
+Projekat je napravljen uz pomoć AI alata: Claude Opus 5.5, Gemini 3.8 Flash i Gemini 4 Argon.

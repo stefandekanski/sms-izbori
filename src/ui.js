@@ -138,13 +138,30 @@ function reloadOnNewVersion() {
 // Chrome offers installing only through this event, which can come before the screen that wants it
 // is shown, so it is kept here for every screen.
 let installPrompt = null;
-let appInstalled = false;
+// "none", "installing" or "installed".
+let installStage = "none";
 let alreadyInstalled = false;
 const installListeners = new Set();
 function changeInstall(change) {
   change();
   installListeners.forEach((listener) => listener());
 }
+
+// Accepting the install, and even Chrome's appinstalled, come before Chrome has built the app and
+// its icon is on the phone, which takes 5 to 12 seconds; until then the page says it is installing,
+// so nobody goes looking for an icon that isn't there yet.
+const INSTALL_SECONDS = 10;
+function startInstalling() {
+  if (installStage !== "none") return;
+  changeInstall(() => {
+    installPrompt = null;
+    installStage = "installing";
+  });
+  setTimeout(() => changeInstall(() => {
+    installStage = "installed";
+  }), INSTALL_SECONDS * 1000);
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -152,12 +169,7 @@ if (typeof window !== "undefined") {
       installPrompt = event;
     });
   });
-  window.addEventListener("appinstalled", () =>
-    changeInstall(() => {
-      installPrompt = null;
-      appInstalled = true;
-    })
-  );
+  window.addEventListener("appinstalled", startInstalling);
   // Chrome on Android tells an installed web app's own pages that it is installed (the manifest
   // names it under related_applications); then there is nothing to install.
   if (!isStandalone()) {
@@ -178,7 +190,7 @@ function useInstall() {
     installListeners.add(listener);
     return () => installListeners.delete(listener);
   }, []);
-  return { prompt: installPrompt, installed: appInstalled, alreadyInstalled };
+  return { prompt: installPrompt, stage: installStage, alreadyInstalled };
 }
 
 async function promptInstall() {
@@ -191,9 +203,7 @@ async function promptInstall() {
   event.prompt();
   try {
     const choice = await event.userChoice;
-    if (choice?.outcome === "accepted") changeInstall(() => {
-      appInstalled = true;
-    });
+    if (choice?.outcome === "accepted") startInstalling();
   } catch {}
 }
 
@@ -219,9 +229,6 @@ function isStandalone() {
  */
 function App() {
   const [state, setState] = useState(() => app.getState());
-  const [welcomeDone, setWelcomeDone] = useState(
-    () => isStandalone() || rawStorage.getItem("sms_izbori.welcome") === "browser"
-  );
 
   useEffect(() => {
     return app.subscribe(setState);
@@ -250,15 +257,11 @@ function App() {
   const profile = state.profile;
   const isEditingSetup = state.showSetup || profile == null;
 
-  if (profile == null && !welcomeDone) {
+  // In a browser the app is installed first; whoever already set it up in the browser keeps using it there.
+  if (profile == null && !isStandalone()) {
     return html`
       <div class="screen-container">
-        <${WelcomeScreen}
-          onContinue=${() => {
-            rawStorage.setItem("sms_izbori.welcome", "browser");
-            setWelcomeDone(true);
-          }}
-        />
+        <${WelcomeScreen} />
       </div>
     `;
   }
@@ -703,33 +706,30 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
   `;
 }
 
-/** First screen in a browser: what the app does, and installing it, so that it is then used like
- * any other app. An app's own browser can't install, so there it only leads on to Chrome or
- * Safari. "Nastavi bez instaliranja" keeps the page usable wherever installing doesn't work. */
-function WelcomeScreen({ onContinue }) {
+/** First screen in a browser: the app, and installing it, so that it is then used like any other
+ * app. An app's own browser can't install, so there it only leads on to Chrome or Safari. Colors
+ * mean here what they mean in the rest of the app: blue is what to do, green is done, red a problem. */
+function WelcomeScreen() {
+  const install = useInstall();
+  const done = install.stage !== "none" || install.alreadyInstalled;
   return html`
-    <header class="top-bar">
-      <div class="top-bar-title">
+    <header class="welcome-hero">
+      <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
+      <div>
         <h1>SMS Izbori</h1>
+        <div class="welcome-subtitle">Za kontrolore na biračkom mestu</div>
       </div>
     </header>
 
     <main class="content-scroll">
-      <div class="welcome-text">
-        <p>Aplikacija za kontrolore na biračkom mestu.</p>
-        <p>
-          Jednom upišeš broj biračkog mesta, svoje ime i prezime i broj koordinatora. Posle svako javljanje
-          (upisani, izlaznost, glasanje van BM, rezultati) ide jednim dodirom: otvori se poruka sa već
-          napisanim tekstom, a ti je samo pošalješ.
-        </p>
-        <p>Podaci ostaju samo na tvom telefonu. Radi i bez interneta; za slanje poruke treba samo signal.</p>
-      </div>
-
+      ${IN_APP_BROWSER || done
+        ? null
+        : html`
+            <p class="welcome-intro">
+              Jednom upišeš podatke, a svako javljanje šalješ jednim dodirom kao SMS. Radi i bez interneta.
+            </p>
+          `}
       ${IN_APP_BROWSER ? html`<${InAppBrowserWarning} welcome />` : html`<${InstallSteps} />`}
-
-      <button type="button" class="btn-text btn-full-width" onClick=${onContinue}>
-        Nastavi bez instaliranja
-      </button>
     </main>
   `;
 }
@@ -744,32 +744,42 @@ function InstallSteps() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (install.installed || install.alreadyInstalled) {
-    return html`
-      <div class="install-card" role="status">
-        <h2 class="install-card-title">
-          ${install.installed ? "Aplikacija je instalirana" : "Aplikacija je već instalirana"}
-        </h2>
-        <div>Otvori „SMS Izbori“ kao svaku drugu aplikaciju.</div>
-      </div>
-    `;
-  }
+  if (install.alreadyInstalled) return html`<${InstalledCard} stage="installed" already />`;
+  if (install.stage !== "none") return html`<${InstalledCard} stage=${install.stage} />`;
 
+  // No page can start this on an iPhone. The home screen app keeps its data apart from Safari, so
+  // it is set up there.
   if (isIos(navigator)) {
     return html`
-      <div class="install-card">
-        <h2 class="install-card-title">Dodaj aplikaciju na početni ekran</h2>
-        <${IosSteps} />
-      </div>
+      <section class="flow-card flow-card-steps install-card">
+        <h2>Dodaj aplikaciju na telefon</h2>
+        <ol class="steps">
+          <li>
+            <div>
+              Dodirni dugme za deljenje <${ShareIcon} /> na dnu ili vrhu ekrana. Ako ga ne vidiš, prvo dodirni <${Key}>•••<//>.
+            </div>
+          </li>
+          <li>
+            <div>Pomeri spisak nadole i dodirni <${MenuItem} sr="Dodaj na početni ekran" en="Add to Home Screen" />.</div>
+          </li>
+          <li>
+            <div>U gornjem desnom uglu dodirni <${MenuItem} sr="Dodaj" en="Add" />.</div>
+          </li>
+          <li>
+            <div>Otvori novu aplikaciju <strong>„SMS Izbori“</strong> i tamo upiši podatke.</div>
+          </li>
+        </ol>
+      </section>
     `;
   }
 
   if (install.prompt) {
     return html`
-      <div class="install-card">
-        <h2 class="install-card-title">Instaliraj aplikaciju</h2>
+      <section class="flow-card flow-card-action install-card">
+        <h2>Instaliraj aplikaciju</h2>
+        <p>Sačuvaj „SMS Izbori“ na telefonu pre početka rada.</p>
         <button type="button" class="btn-primary" onClick=${promptInstall}>Instaliraj</button>
-      </div>
+      </section>
     `;
   }
 
@@ -777,69 +787,103 @@ function InstallSteps() {
 
   // Firefox never sends the offer, and Chrome doesn't for a while after it was turned down.
   return html`
-    <div class="install-card">
-      <h2 class="install-card-title">Instaliraj aplikaciju</h2>
-      <ol class="install-steps">
-        <li>Otvori meni pretraživača: dugme ⋮ ili ≡.</li>
+    <section class="flow-card flow-card-steps install-card">
+      <h2>Instaliraj aplikaciju iz menija</h2>
+      <ol class="steps">
         <li>
-          Dodirni „Instaliraj aplikaciju“ ili „Dodaj na početni ekran“ (na engleskom: „Install app“ ili „Add to
-          home screen“).
+          <div>Dodirni meni pretraživača <${Key}>⋮<//> ili <${Key}>≡<//> u uglu ekrana.</div>
+        </li>
+        <li>
+          <div>
+            Dodirni <${MenuItem} sr="Instaliraj aplikaciju" en="Install app" /> ili <${MenuItem} sr="Dodaj na početni ekran" en="Add to home screen" />.
+          </div>
+        </li>
+        <li>
+          <div>Potvrdi: dodirni <${MenuItem} sr="Instaliraj" en="Install" /> ili <${MenuItem} sr="Dodaj" en="Add" />.</div>
         </li>
       </ol>
-    </div>
+    </section>
   `;
 }
 
-/** Adding to the home screen in Safari, which no page can start by itself. The home screen app
- * keeps its data apart from Safari, so it is set up there. */
-function IosSteps({ again = false }) {
-  return html`
-    <ol class="install-steps">
-      <li>
-        Dodirni dugme Podeli (na engleskom: „Share“):
-        <span class="ios-share-chip">
-          <svg class="ios-share-icon" viewBox="0 0 24 24" role="img" aria-label="dugme Podeli">
-            <path d="M8.5 9.5H6.5V20.5H17.5V9.5H15.5" />
-            <path d="M12 2.5V14M8.5 6L12 2.5L15.5 6" />
-          </svg>
-        </span>
-        Ako ga ne vidiš, prvo dodirni •••.
-      </li>
-      <li>
-        Dodirni „Dodaj na početni ekran“ (na engleskom: „Add to Home Screen“). Ako ga ne vidiš, pomeri listu
-        nadole.
-      </li>
-      <li>Dodirni „Dodaj“ (na engleskom: „Add“).</li>
-      <li>
-        ${again
-          ? "Otvori aplikaciju „SMS Izbori“ i tamo ponovo upiši podatke: ono što je upisano ovde ne prelazi u aplikaciju."
-          : "Otvori aplikaciju „SMS Izbori“ i tamo upiši podatke."}
-      </li>
-    </ol>
-  `;
-}
-
-/** Warning banner shown inside web views of social networks. On Android its button hands the
- * page on through an intent: link, to Chrome first, where the contact picker works; whether the
- * app lets that through is up to the app. On the welcome screen it is the way to install. */
-function InAppBrowserWarning({ welcome = false }) {
-  if (!IN_APP_BROWSER) return null;
-
-  // x-safari-https: opens Safari from some apps' browsers on iOS 17 and later; not tried in Viber.
-  if (isIos(navigator)) {
-    const inSafari = `x-safari-${location.protocol.replace(":", "")}://${location.host}${location.pathname}`;
+/** After installing. Where the launcher puts the icon is up to the phone, so the card shows the
+ * icon instead of saying where to look. */
+function InstalledCard({ stage, already = false }) {
+  if (stage === "installing") {
     return html`
-      <div class="in-app-warning" role="alert">
-        <div>
-          ${welcome
-            ? "Aplikacija se dodaje na početni ekran iz Safarija. Prvo otvori ovu stranicu u Safariju:"
-            : "Bolje otvori ovu stranicu u Safariju: ovaj pretraživač čuva upisane podatke odvojeno."}
+      <section class="flow-card flow-card-action install-card" role="status">
+        <div class="flow-card-title">
+          <span class="flow-spinner" aria-hidden="true"></span>
+          <h2>Aplikacija se instalira…</h2>
         </div>
-        <a class="in-app-open" href=${inSafari}>Otvori u Safariju</a>
-        <div>Ako se ništa ne desi: u meniju ovog pretraživača potraži „Otvori u Safariju“ (na engleskom: „Open in Safari“).</div>
-      </div>
+        <p>Sačekaj nekoliko sekundi.</p>
+      </section>
     `;
   }
+  return html`
+    <section class="flow-card flow-card-done install-card" role="status">
+      <div class="flow-card-title">
+        <${CheckIcon} />
+        <h2>${already ? "Aplikacija je već na telefonu" : "Aplikacija je spremna"}</h2>
+      </div>
+      <p>Na telefonu nađi plavu ikonicu „SMS Izbori“ i otvori je kao svaku drugu aplikaciju.</p>
+      <div class="app-preview">
+        <img src="icons/icon-any.svg" alt="" width="40" height="40" />
+        <strong>SMS Izbori</strong>
+      </div>
+    </section>
+  `;
+}
+
+/** A menu item as the phone shows it: in Serbian, and in English for phones set to English. */
+function MenuItem({ sr, en }) {
+  return html`<strong>„${sr}“</strong> <span class="menu-en">(${en})</span>`;
+}
+
+/** A browser button drawn as a key: ⋮, ≡ or •••. */
+function Key({ children }) {
+  return html`<span class="key-chip">${children}</span>`;
+}
+
+/** Safari's Share button, in Safari's blue. */
+function ShareIcon() {
+  return html`
+    <span class="icon-chip">
+      <svg class="share-icon" viewBox="0 0 24 24" role="img" aria-label="dugme za deljenje">
+        <path d="M8.5 9.5H6.5V20.5H17.5V9.5H15.5" />
+        <path d="M12 2.5V14M8.5 6L12 2.5L15.5 6" />
+      </svg>
+    </span>
+  `;
+}
+
+function CheckIcon() {
+  return html`
+    <svg class="flow-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+    </svg>
+  `;
+}
+
+function WarningIcon() {
+  return html`
+    <svg class="flow-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+    </svg>
+  `;
+}
+
+/** An app's own browser. On the welcome screen it is the way to install: its button hands the page
+ * on, on Android through an intent: link to Chrome first, where the contact picker also works;
+ * whether the app lets that through is up to the app, so the steps through its menu follow. On
+ * Setup and the main screen, for whoever set the app up in there, it warns that the data stays
+ * apart from Chrome and Safari. */
+function InAppBrowserWarning({ welcome = false }) {
+  if (!IN_APP_BROWSER) return null;
+  const ios = isIos(navigator);
+
+  // x-safari-https: opens Safari from some apps' browsers on iOS 17 and later; not tried in Viber.
+  const inSafari = `x-safari-${location.protocol.replace(":", "")}://${location.host}${location.pathname}`;
 
   const scheme = location.protocol.replace(":", "");
   const intentUrl = (pkg) =>
@@ -866,31 +910,71 @@ function InAppBrowserWarning({ welcome = false }) {
     }, 1500);
   }
 
+  const button = ios
+    ? html`<a class="btn-primary in-app-open" href=${inSafari}>Otvori u Safariju</a>`
+    : html`<a class="btn-primary in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>`;
+
+  if (!welcome) {
+    return html`
+      <section class="flow-card flow-card-alert in-app-warning" role="alert">
+        <div class="flow-card-title">
+          <${WarningIcon} />
+          <h2>Otvoreno unutar druge aplikacije</h2>
+        </div>
+        <p>
+          ${ios
+            ? "Podaci upisani ovde nisu vidljivi u Safariju."
+            : "Podaci upisani ovde nisu vidljivi u Chrome-u, a biranje broja iz imenika ne radi."}
+        </p>
+        ${button}
+      </section>
+    `;
+  }
+
   return html`
-    <div class="in-app-warning" role="alert">
-      <div>
-        ${welcome
-          ? "Aplikacija se instalira iz Chrome-a. Prvo otvori ovu stranicu u Chrome-u:"
-          : "Bolje otvori ovu stranicu u Chrome-u: ovaj pretraživač čuva upisane podatke odvojeno i ne otvara imenik."}
-      </div>
-      <a class="in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>
-      ${VIBER
-        ? html`<${ViberMenuSteps} />`
-        : html`<div>Ako se ništa ne desi: meni ⋮ → Otvori u pretraživaču.</div>`}
-    </div>
+    <section class="flow-card flow-card-action in-app-warning">
+      <h2>${ios ? "Prvo pređi u Safari" : "Prvo pređi u Chrome"}</h2>
+      <p>${VIBER && !ios ? "Iz Vibera nije moguće instalirati aplikaciju." : "Odavde nije moguće instalirati aplikaciju."}</p>
+      ${button}
+    </section>
+    <section class="flow-card flow-card-fallback in-app-steps">
+      <h2>Ako se ništa ne desi:</h2>
+      ${ios
+        ? html`
+            <ol class="steps">
+              <li>
+                <div>Dodirni meni ovog pretraživača (<${Key}>•••<//> ili <${ShareIcon} />) u uglu ekrana.</div>
+              </li>
+              <li>
+                <div>Dodirni <${MenuItem} sr="Otvori u Safariju" en="Open in Safari" />.</div>
+              </li>
+            </ol>
+          `
+        : VIBER
+          ? html`<${ViberMenuSteps} />`
+          : html`
+              <ol class="steps">
+                <li>
+                  <div>Dodirni meni <${Key}>⋮<//> u uglu ekrana.</div>
+                </li>
+                <li>
+                  <div>Dodirni <${MenuItem} sr="Otvori u pretraživaču" en="Open in browser" />.</div>
+                </li>
+              </ol>
+            `}
+    </section>
   `;
 }
 
-/** Viber's own way out, step by step, for when the button does nothing. The dots are Viber's menu
- * button as measured on a Pixel (size, spacing and color), alone so that they match both of
+/** Viber's own way out, one action per step. The dots are Viber's menu button as measured on a
+ * Pixel (size, spacing and color), on a patch of the page's color so they look the same in both of
  * Viber's themes; the menu item is Viber's own text in Serbian and English (Viber 29.2). */
 function ViberMenuSteps() {
   return html`
-    <div class="in-app-steps">
-      <div>Ako se ništa ne desi:</div>
-      <ol>
-        <li>
-          Gore desno na ekranu nađi tri ljubičaste tačke:
+    <ol class="steps">
+      <li>
+        <div>
+          Pronađi tri ljubičaste tačke u gornjem desnom uglu:
           <span class="viber-menu-chip">
             <svg class="viber-menu-dots" viewBox="0 0 11 42" role="img" aria-label="tri ljubičaste tačke">
               <circle cx="5.5" cy="5.5" r="5.5" />
@@ -898,15 +982,19 @@ function ViberMenuSteps() {
               <circle cx="5.5" cy="36.5" r="5.5" />
             </svg>
           </span>
-        </li>
-        <li>Dodirni ih. Otvoriće se meni.</li>
-        <li>U meniju dodirni „Otvori u spoljašnjem pretraživaču“ (na engleskom: „Open in external browser“).</li>
-      </ol>
-    </div>
+        </div>
+      </li>
+      <li>
+        <div>Dodirni ih da se otvori meni.</div>
+      </li>
+      <li>
+        <div>Dodirni <${MenuItem} sr="Otvori u spoljašnjem pretraživaču" en="Open in external browser" />.</div>
+      </li>
+    </ol>
   `;
 }
 
-/** Card on the main screen for whoever went on without installing. */
+/** Card on the main screen for whoever set the app up in the browser before it asked to install. */
 function InstallHintCard() {
   const install = useInstall();
   const [dismissed, setDismissed] = useState(() => {
@@ -920,49 +1008,47 @@ function InstallHintCard() {
     setDismissed(true);
   }
 
-  // Where the launcher puts the icon is up to the phone; whoever has installed an app knows how to
-  // find it.
-  if (install.installed) {
+  if (install.stage !== "none") {
+    const installing = install.stage === "installing";
     return html`
-      <div class="install-card" role="status">
-        <h2 class="install-card-title">Aplikacija je instalirana</h2>
-        <div>Otvori „SMS Izbori“ kao svaku drugu aplikaciju.</div>
-        <div class="install-card-actions">
-          <button type="button" class="btn-text" onClick=${dismiss}>
-            U redu
-          </button>
+      <section class="flow-card ${installing ? "flow-card-action" : "flow-card-done"} install-card" role="status">
+        <div class="flow-card-title">
+          ${installing ? html`<span class="flow-spinner" aria-hidden="true"></span>` : html`<${CheckIcon} />`}
+          <h2>${installing ? "Aplikacija se instalira…" : "Aplikacija je na telefonu"}</h2>
         </div>
-      </div>
+        <p>${installing ? "Sačekaj nekoliko sekundi." : "Otvori plavu ikonicu „SMS Izbori“ kao svaku drugu aplikaciju."}</p>
+        <div class="install-card-actions">
+          <button type="button" class="btn-text" onClick=${dismiss}>Zatvori</button>
+        </div>
+      </section>
     `;
   }
 
   if (install.prompt) {
     return html`
-      <div class="install-card">
-        <h2 class="install-card-title">Instaliraj aplikaciju</h2>
+      <section class="flow-card flow-card-action install-card">
+        <h2>Instaliraj „SMS Izbori“ na telefon</h2>
+        <p>Otvara se brže i uvek je pri ruci.</p>
         <div class="install-card-actions">
-          <button type="button" class="btn-primary" onClick=${promptInstall}>
-            Instaliraj
-          </button>
-          <button type="button" class="btn-text" onClick=${dismiss}>
-            Ne sada
-          </button>
+          <button type="button" class="btn-primary" onClick=${promptInstall}>Instaliraj</button>
+          <button type="button" class="btn-text" onClick=${dismiss}>Ne sada</button>
         </div>
-      </div>
+      </section>
     `;
   }
 
   if (isIos(navigator) && !IN_APP_BROWSER) {
     return html`
-      <div class="install-card">
-        <h2 class="install-card-title">Dodaj aplikaciju na početni ekran</h2>
-        <${IosSteps} again />
+      <section class="flow-card flow-card-action install-card">
+        <h2>Dodaj „SMS Izbori“ na telefon</h2>
+        <p>
+          Dodirni <${ShareIcon} /> → <${MenuItem} sr="Dodaj na početni ekran" en="Add to Home Screen" /> → <${MenuItem} sr="Dodaj" en="Add" />.
+        </p>
+        <p class="flow-note">Važno: u instaliranoj aplikaciji moraš ponovo da upišeš podatke.</p>
         <div class="install-card-actions">
-          <button type="button" class="btn-text" onClick=${dismiss}>
-            Ne sada
-          </button>
+          <button type="button" class="btn-text" onClick=${dismiss}>Ne sada</button>
         </div>
-      </div>
+      </section>
     `;
   }
 
