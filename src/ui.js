@@ -20,6 +20,11 @@ import { createStore } from "./store.js";
 import { createApp } from "./app.js";
 import { smsUri, isIos } from "./sms.js";
 
+// The own browsers of Viber, Facebook, Instagram and Line, and other Android web views.
+const IN_APP_BROWSER =
+  typeof navigator !== "undefined" &&
+  /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(navigator.userAgent || "");
+
 // Storage wrapper handling privacy mode and persist request
 let storageFailed = false;
 let rawStorage;
@@ -212,7 +217,10 @@ function SetupScreen({ app, profile, storageFailed }) {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [canClose, changed]);
 
+  // Web views report the contact picker but can't open it (seen in Viber's browser), so the
+  // button would only lead to an error there.
   const hasContacts =
+    !IN_APP_BROWSER &&
     typeof navigator !== "undefined" &&
     "contacts" in navigator &&
     typeof window !== "undefined" &&
@@ -564,9 +572,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 
 /** Warning banner shown inside web views of social networks. */
 function InAppBrowserWarning() {
-  const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
-  const isInApp = /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(ua);
-  if (!isInApp) return null;
+  if (!IN_APP_BROWSER) return null;
 
   return html`
     <div class="in-app-warning" role="alert">
