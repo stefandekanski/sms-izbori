@@ -168,6 +168,48 @@ body {
   text-decoration: none;
 }
 
+.in-app-steps {
+  margin-top: 0.75rem;
+  text-align: left;
+}
+
+.in-app-steps ol {
+  margin: 0.25rem 0 0;
+  padding-left: 1.5rem;
+}
+
+.in-app-steps li {
+  margin-top: 0.5rem;
+}
+
+/* The photo of Viber's bar corner, with a ring around the three dots. */
+.viber-menu-shot {
+  position: relative;
+  display: block;
+  width: 13rem;
+  max-width: 100%;
+  margin-top: 0.5rem;
+}
+
+.viber-menu-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.viber-menu-shot::after {
+  content: "";
+  position: absolute;
+  left: 87.4%;
+  top: 52.5%;
+  width: 20%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 3px solid #ffcc00;
+  border-radius: 50%;
+}
+
 /* Install hint card */
 .install-card {
   display: flex;

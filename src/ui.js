@@ -24,6 +24,7 @@ import { smsUri, isIos } from "./sms.js";
 const IN_APP_BROWSER =
   typeof navigator !== "undefined" &&
   /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(navigator.userAgent || "");
+const VIBER = typeof navigator !== "undefined" && /Viber/i.test(navigator.userAgent || "");
 
 // Storage wrapper handling privacy mode and persist request
 let storageFailed = false;
@@ -614,7 +615,34 @@ function InAppBrowserWarning() {
     <div class="in-app-warning" role="alert">
       <div>Bolje otvori ovu stranicu u Chrome-u: ovaj preglednik čuva upisane podatke odvojeno i ne otvara imenik.</div>
       <a class="in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>
-      <div>Ako se ništa ne desi: meni ⋮ → Otvori u pregledniku.</div>
+      ${VIBER
+        ? html`<${ViberMenuSteps} />`
+        : html`<div>Ako se ništa ne desi: meni ⋮ → Otvori u pregledniku.</div>`}
+    </div>
+  `;
+}
+
+/** Viber's own way out, step by step, for when the button does nothing. The photo is the corner of
+ * Viber's browser bar, and the menu item is Viber's own text in Serbian and English (Viber 29.2). */
+function ViberMenuSteps() {
+  return html`
+    <div class="in-app-steps">
+      <div>Ako se ništa ne desi:</div>
+      <ol>
+        <li>
+          Gore desno na ekranu nađi tri ljubičaste tačke:
+          <span class="viber-menu-shot">
+            <img
+              src="img/viber-menu.png"
+              width="420"
+              height="160"
+              alt="Tri ljubičaste tačke u gornjem desnom uglu Vibera"
+            />
+          </span>
+        </li>
+        <li>Dodirni ih. Otvoriće se meni.</li>
+        <li>U meniju dodirni „Otvori u spoljašnjem pretraživaču“ (na engleskom: „Open in external browser“).</li>
+      </ol>
     </div>
   `;
 }
