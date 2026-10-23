@@ -204,7 +204,9 @@ async function promptInstall() {
   try {
     const choice = await event.userChoice;
     if (choice?.outcome === "accepted") startInstalling();
+    return choice?.outcome;
   } catch {}
+  return null;
 }
 
 /** Formats epoch timestamp as 24h HH:mm. */
@@ -229,6 +231,7 @@ function isStandalone() {
  */
 function App() {
   const [state, setState] = useState(() => app.getState());
+  const [inBrowser, setInBrowser] = useState(() => rawStorage.getItem("sms_izbori.welcome") === "browser");
 
   useEffect(() => {
     return app.subscribe(setState);
@@ -257,11 +260,17 @@ function App() {
   const profile = state.profile;
   const isEditingSetup = state.showSetup || profile == null;
 
-  // In a browser the app is installed first; whoever already set it up in the browser keeps using it there.
-  if (profile == null && !isStandalone()) {
+  // In a browser the app is installed first. Whoever already set it up in the browser, or couldn't
+  // install and went on without (see WelcomeScreen), uses it there.
+  if (profile == null && !isStandalone() && !inBrowser) {
     return html`
       <div class="screen-container">
-        <${WelcomeScreen} />
+        <${WelcomeScreen}
+          onContinue=${() => {
+            rawStorage.setItem("sms_izbori.welcome", "browser");
+            setInBrowser(true);
+          }}
+        />
       </div>
     `;
   }
@@ -709,9 +718,14 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 /** First screen in a browser: the app, and installing it, so that it is then used like any other
  * app. An app's own browser can't install, so there it only leads on to Chrome or Safari. Colors
  * mean here what they mean in the rest of the app: blue is what to do, green is done, red a problem. */
-function WelcomeScreen() {
+function WelcomeScreen({ onContinue }) {
   const install = useInstall();
   const done = install.stage !== "none" || install.alreadyInstalled;
+  // Going on without installing is offered only once the ways to install have failed: the app's
+  // browser didn't hand the page on, Chrome's offer was turned down, or the steps have been on
+  // screen for a while and nothing got installed. Sending works in any browser.
+  const [stuck, setStuck] = useState(false);
+  const onStuck = () => setStuck(true);
   return html`
     <header class="welcome-hero">
       <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
@@ -729,13 +743,25 @@ function WelcomeScreen() {
               Jednom upišeš podatke, a svako javljanje šalješ jednim dodirom kao SMS. Radi i bez interneta.
             </p>
           `}
-      ${IN_APP_BROWSER ? html`<${InAppBrowserWarning} welcome />` : html`<${InstallSteps} />`}
+      ${IN_APP_BROWSER
+        ? html`<${InAppBrowserWarning} welcome onStuck=${onStuck} />`
+        : html`<${InstallSteps} onStuck=${onStuck} />`}
+      ${stuck && !done
+        ? html`
+            <button type="button" class="btn-text btn-full-width" onClick=${onContinue}>
+              Ne uspevaš? Nastavi iz pretraživača
+            </button>
+          `
+        : null}
     </main>
   `;
 }
 
+// How long the install steps stay on screen, with nothing installed, before going on without is offered.
+const STUCK_SECONDS = 60;
+
 /** Installing, the way the browser this page runs in allows it. */
-function InstallSteps() {
+function InstallSteps({ onStuck }) {
   const install = useInstall();
   // Chrome sends its offer soon after the page loads; until then the menu steps would only flash.
   const [waited, setWaited] = useState(false);
@@ -743,6 +769,14 @@ function InstallSteps() {
     const timer = setTimeout(() => setWaited(true), 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  const showingSteps =
+    install.stage === "none" && !install.alreadyInstalled && (isIos(navigator) || (!install.prompt && waited));
+  useEffect(() => {
+    if (!showingSteps) return;
+    const timer = setTimeout(onStuck, STUCK_SECONDS * 1000);
+    return () => clearTimeout(timer);
+  }, [showingSteps]);
 
   if (install.alreadyInstalled) return html`<${InstalledCard} stage="installed" already />`;
   if (install.stage !== "none") return html`<${InstalledCard} stage=${install.stage} />`;
@@ -778,7 +812,15 @@ function InstallSteps() {
       <section class="flow-card flow-card-action install-card">
         <h2>Instaliraj aplikaciju</h2>
         <p>Sačuvaj „SMS Izbori“ na telefonu pre početka rada.</p>
-        <button type="button" class="btn-primary" onClick=${promptInstall}>Instaliraj</button>
+        <button
+          type="button"
+          class="btn-primary"
+          onClick=${async () => {
+            if ((await promptInstall()) === "dismissed") onStuck();
+          }}
+        >
+          Instaliraj
+        </button>
       </section>
     `;
   }
@@ -878,7 +920,7 @@ function WarningIcon() {
  * whether the app lets that through is up to the app, so the steps through its menu follow. On
  * Setup and the main screen, for whoever set the app up in there, it warns that the data stays
  * apart from Chrome and Safari. */
-function InAppBrowserWarning({ welcome = false }) {
+function InAppBrowserWarning({ welcome = false, onStuck = () => {} }) {
   if (!IN_APP_BROWSER) return null;
   const ios = isIos(navigator);
 
@@ -892,26 +934,36 @@ function InAppBrowserWarning({ welcome = false }) {
     `S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
   const inChrome = intentUrl("com.android.chrome");
 
-  function openElsewhere(event) {
-    event.preventDefault();
+  // After a tap of the button, runs `run` after `ms` if the page is still on screen, that is if
+  // nothing took it. Leaving the page cancels it, and a timer that ran late because the page was in
+  // the background counts for nothing.
+  function whileStillHere() {
     const started = Date.now();
-    let timer;
-    const cancel = () => clearTimeout(timer);
+    const timers = [];
+    const cancel = () => timers.forEach(clearTimeout);
     document.addEventListener("visibilitychange", cancel, { once: true });
     window.addEventListener("pagehide", cancel, { once: true });
     window.addEventListener("blur", cancel, { once: true });
+    return (ms, run) =>
+      timers.push(setTimeout(() => {
+        if (document.visibilityState === "visible" && Date.now() - started < ms + 1500) run();
+      }, ms));
+  }
+
+  function openElsewhere(event) {
+    event.preventDefault();
+    const later = whileStillHere();
     location.href = inChrome;
     // The app finds nothing to hand the link to when Chrome is missing, and the page stays on
     // screen; then ask for any browser: the default one, or Android's "Open with" list.
-    timer = setTimeout(() => {
-      if (document.visibilityState === "visible" && Date.now() - started < 3000) {
-        location.href = intentUrl(null);
-      }
-    }, 1500);
+    later(1500, () => {
+      location.href = intentUrl(null);
+    });
+    later(4500, onStuck);
   }
 
   const button = ios
-    ? html`<a class="btn-primary in-app-open" href=${inSafari}>Otvori u Safariju</a>`
+    ? html`<a class="btn-primary in-app-open" href=${inSafari} onClick=${() => whileStillHere()(4500, onStuck)}>Otvori u Safariju</a>`
     : html`<a class="btn-primary in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>`;
 
   if (!welcome) {
