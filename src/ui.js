@@ -20,10 +20,14 @@ import { createStore } from "./store.js";
 import { createApp } from "./app.js";
 import { smsUri, isIos } from "./sms.js";
 
-// The own browsers of Viber, Facebook, Instagram and Line, and other Android web views.
+// The own browsers of Viber, Facebook, Instagram and Line, and other Android web views. On an
+// iPhone, Safari and the other browsers all name Safari in their user agent and an app's own
+// browser usually doesn't (Viber names nothing, as on Android); the home screen app doesn't
+// either, so it is left out.
 const IN_APP_BROWSER =
   typeof navigator !== "undefined" &&
-  /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(navigator.userAgent || "");
+  (/; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(navigator.userAgent || "") ||
+    (isIos(navigator) && !/Safari\//.test(navigator.userAgent || "") && !isStandalone()));
 // Viber's browser on Android doesn't name itself: its user agent is the plain WebView one (seen on a
 // Pixel with Viber 29.2). The kontrolori share the link on Viber, so any Android web view that
 // isn't a known other app counts as Viber's.
@@ -585,10 +589,14 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 function InAppBrowserWarning() {
   if (!IN_APP_BROWSER) return null;
 
+  // x-safari-https: opens Safari from some apps' browsers on iOS 17 and later; not tried in Viber.
   if (isIos(navigator)) {
+    const inSafari = `x-safari-${location.protocol.replace(":", "")}://${location.host}${location.pathname}`;
     return html`
       <div class="in-app-warning" role="alert">
-        Bolje otvori ovu stranicu u Chrome-u ili Safariju (meni ⋮ → Otvori u pretraživaču): ovaj pretraživač čuva upisane podatke odvojeno od njih.
+        <div>Bolje otvori ovu stranicu u Safariju: ovaj pretraživač čuva upisane podatke odvojeno.</div>
+        <a class="in-app-open" href=${inSafari}>Otvori u Safariju</a>
+        <div>Ako se ništa ne desi: u meniju ovog pretraživača potraži „Otvori u Safariju“ (na engleskom: „Open in Safari“).</div>
       </div>
     `;
   }
