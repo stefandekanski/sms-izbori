@@ -1163,7 +1163,7 @@ function AlertDialog({ text, confirmText, onConfirm, dismissText, onDismiss, onC
     function handleKeyDown(e) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onDismiss();
+        onCancel();
       }
     }
 
@@ -1174,7 +1174,7 @@ function AlertDialog({ text, confirmText, onConfirm, dismissText, onDismiss, onC
         prevActive.focus();
       }
     };
-  }, [onDismiss]);
+  }, [onCancel]);
 
   return html`
     <div class="dialog-backdrop" onClick=${onCancel}>
