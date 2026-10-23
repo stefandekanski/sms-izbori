@@ -572,7 +572,8 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 }
 
 /** Warning banner shown inside web views of social networks. On Android its button hands the
- * page to Chrome through an intent: link; whether the app lets that through is up to the app. */
+ * page on through an intent: link, to Chrome first, where the contact picker works; whether the
+ * app lets that through is up to the app. */
 function InAppBrowserWarning() {
   if (!IN_APP_BROWSER) return null;
 
@@ -585,13 +586,34 @@ function InAppBrowserWarning() {
   }
 
   const scheme = location.protocol.replace(":", "");
-  const inChrome =
+  const intentUrl = (pkg) =>
     `intent://${location.host}${location.pathname}#Intent;scheme=${scheme};` +
-    `package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
+    (pkg ? `package=${pkg};` : "") +
+    `S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
+  const inChrome = intentUrl("com.android.chrome");
+
+  function openElsewhere(event) {
+    event.preventDefault();
+    const started = Date.now();
+    let timer;
+    const cancel = () => clearTimeout(timer);
+    document.addEventListener("visibilitychange", cancel, { once: true });
+    window.addEventListener("pagehide", cancel, { once: true });
+    window.addEventListener("blur", cancel, { once: true });
+    location.href = inChrome;
+    // The app finds nothing to hand the link to when Chrome is missing, and the page stays on
+    // screen; then ask for any browser: the default one, or Android's "Open with" list.
+    timer = setTimeout(() => {
+      if (document.visibilityState === "visible" && Date.now() - started < 3000) {
+        location.href = intentUrl(null);
+      }
+    }, 1500);
+  }
+
   return html`
     <div class="in-app-warning" role="alert">
       <div>Bolje otvori ovu stranicu u Chrome-u: ovaj preglednik čuva upisane podatke odvojeno i ne otvara imenik.</div>
-      <a class="in-app-open" href=${inChrome}>Otvori u Chrome-u</a>
+      <a class="in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>
       <div>Ako se ništa ne desi: meni ⋮ → Otvori u pregledniku.</div>
     </div>
   `;
