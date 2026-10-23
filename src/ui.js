@@ -622,6 +622,7 @@ function InAppBrowserWarning() {
 /** Card prompting the user to install the PWA or add it to the home screen. */
 function InstallHintCard() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [installed, setInstalled] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     return rawStorage.getItem("sms_izbori.installHint") === "dismissed";
   });
@@ -631,8 +632,16 @@ function InstallHintCard() {
       e.preventDefault();
       setDeferredPrompt(e);
     }
+    function handleInstalled() {
+      setDeferredPrompt(null);
+      setInstalled(true);
+    }
     window.addEventListener("beforeinstallprompt", handlePrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handlePrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handlePrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
   }, []);
 
   if (isStandalone() || dismissed) return null;
@@ -644,6 +653,22 @@ function InstallHintCard() {
 
   const ios = isIos(navigator);
 
+  // The launcher decides where the icon goes; with every home screen page full it lands only in
+  // the app list, so say where to look.
+  if (installed) {
+    return html`
+      <div class="install-card" role="status">
+        <h2 class="install-card-title">Aplikacija je dodata</h2>
+        <div>Ako ikonica „SMS Izbori“ nije na početnom ekranu, nađi je među svim aplikacijama: prevuci prstom nagore od dna ekrana.</div>
+        <div class="install-card-actions">
+          <button type="button" class="btn-text" onClick=${dismiss}>
+            U redu
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   if (deferredPrompt) {
     return html`
       <div class="install-card">
@@ -652,9 +677,13 @@ function InstallHintCard() {
           <button
             type="button"
             class="btn-primary"
-            onClick=${() => {
+            onClick=${async () => {
               deferredPrompt.prompt();
               setDeferredPrompt(null);
+              try {
+                const choice = await deferredPrompt.userChoice;
+                if (choice?.outcome === "accepted") setInstalled(true);
+              } catch {}
             }}
           >
             Dodaj na početni ekran
