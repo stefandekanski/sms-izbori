@@ -24,7 +24,11 @@ import { smsUri, isIos } from "./sms.js";
 const IN_APP_BROWSER =
   typeof navigator !== "undefined" &&
   /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(navigator.userAgent || "");
-const VIBER = typeof navigator !== "undefined" && /Viber/i.test(navigator.userAgent || "");
+const VIBER =
+  typeof navigator !== "undefined" &&
+  (/Viber/i.test(navigator.userAgent || "") ||
+    (/; wv\)/.test(navigator.userAgent || "") &&
+      !/FBAN|FBAV|FB_IAB|Instagram|Line\/|Telegram/i.test(navigator.userAgent || "")));
 
 // Storage wrapper handling privacy mode and persist request
 let storageFailed = false;
@@ -618,6 +622,7 @@ function InAppBrowserWarning() {
       ${VIBER
         ? html`<${ViberMenuSteps} />`
         : html`<div>Ako se ništa ne desi: meni ⋮ → Otvori u pregledniku.</div>`}
+      <div style="font-size:0.75rem;font-weight:400;margin-top:0.5rem">${navigator.userAgent}</div>
     </div>
   `;
 }
