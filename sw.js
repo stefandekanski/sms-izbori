@@ -1,4 +1,8 @@
-const CACHE_NAME = "sms-izbori-v1";
+// Keeps the page working with no signal. Every file is served from one cache that a new version
+// fills completely before it takes over, so a weak connection can never mix old and new modules.
+// tools/deploy-web.sh stamps VERSION from the site's files, so any change makes a new worker.
+const VERSION = "69991b313407";
+const CACHE_NAME = `sms-izbori-${VERSION}`;
 const ASSETS = [
   "./",
   "./index.html",
@@ -18,67 +22,37 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
+  // Any failed file fails the install, and the old version stays in charge.
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.all(
-        ASSETS.map((url) =>
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        ASSETS.map(async (url) => {
           // Past the HTTP cache, so a new version never precaches an old file.
-          fetch(url, { cache: "reload" })
-            .then((response) => {
-              if (response && response.ok) {
-                return cache.put(url, response);
-              }
-            })
-            .catch(() => {})
-        )
-      );
-    })
+          const response = await fetch(url, { cache: "reload" });
+          if (!response.ok) throw new Error(`${url}: ${response.status}`);
+          await cache.put(url, response);
+        }),
+      )
+    ).then(() => self.skipWaiting()),
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      );
-    }).then(() => self.clients.claim())
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
   );
 });
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-
-  event.respondWith(
-    (async () => {
-      const cache = await caches.open(CACHE_NAME);
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Network timeout")), 3000);
-      });
-
-      const networkPromise = (async () => {
-        const response = await fetch(event.request);
-        if (response && response.status === 200) {
-          cache.put(event.request, response.clone());
-        }
-        return response;
-      })();
-
-      try {
-        return await Promise.race([networkPromise, timeoutPromise]);
-      } catch {
-        const cached = await cache.match(event.request);
-        if (cached) return cached;
-        if (event.request.mode === "navigate") {
-          const fallback = (await cache.match("./index.html")) || (await cache.match("./"));
-          if (fallback) return fallback;
-        }
-        throw new Error("Offline and not cached");
-      }
-    })()
-  );
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    // Navigations may carry tracking parameters from the app that shared the link.
+    const cached = event.request.mode === "navigate"
+      ? await cache.match("./index.html")
+      : await cache.match(event.request, { ignoreSearch: true });
+    return cached ?? fetch(event.request);
+  })());
 });

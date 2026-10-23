@@ -176,9 +176,8 @@ function SetupScreen({ app, profile, storageFailed }) {
     });
     setErrors(errs);
     if (errs.length === 0) {
-      if (history.state?.setup) {
-        history.back();
-      }
+      leavingRef.current = true;
+      popSetupEntry();
       return true;
     }
     return false;
@@ -191,9 +190,7 @@ function SetupScreen({ app, profile, storageFailed }) {
       setConfirmLeave(true);
     } else {
       leavingRef.current = true;
-      if (history.state?.setup) {
-        history.back();
-      }
+      popSetupEntry();
       app.closeSetup();
     }
   }
@@ -202,8 +199,10 @@ function SetupScreen({ app, profile, storageFailed }) {
     if (!canClose) return;
     function handlePopState() {
       if (leavingRef.current) return;
+      setupEntryPushed = false;
       if (changed) {
         history.pushState({ setup: true }, "");
+        setupEntryPushed = true;
         setConfirmLeave(true);
       } else {
         app.closeSetup();
@@ -235,6 +234,8 @@ function SetupScreen({ app, profile, storageFailed }) {
           setPickedName(contactName || null);
           setNoContactsApp(false);
           setErrors((prev) => prev.filter((e) => e !== "number"));
+        } else {
+          setErrors((prev) => [...prev.filter((e) => e !== "number"), "number"]);
         }
       }
     } catch {
@@ -375,12 +376,11 @@ function SetupScreen({ app, profile, storageFailed }) {
               save();
             }}
             dismissText="Ne, odbaci"
+            onCancel=${() => setConfirmLeave(false)}
             onDismiss=${() => {
               leavingRef.current = true;
               setConfirmLeave(false);
-              if (history.state?.setup) {
-                history.back();
-              }
+              popSetupEntry();
               app.closeSetup();
             }}
           />
@@ -396,9 +396,7 @@ function SetupScreen({ app, profile, storageFailed }) {
               leavingRef.current = true;
               setConfirmClear(false);
               app.clearReports();
-              if (history.state?.setup) {
-                history.back();
-              }
+              popSetupEntry();
               app.closeSetup();
             }}
             dismissText="Odustani"
@@ -432,11 +430,25 @@ function SetupField({ id, tag, label, value, onInput, error, inputmode, autocapi
   `;
 }
 
+/** Whether the gear pushed a history entry for Setup that is still there; only that entry may be popped. */
+let setupEntryPushed = false;
+
+/** Pops the Setup history entry if this page pushed it, so leaving Setup never leaves the page. */
+function popSetupEntry() {
+  if (!setupEntryPushed) return;
+  setupEntryPushed = false;
+  history.back();
+}
+
+function isTextField(element) {
+  return Boolean(element?.isConnected && (element.tagName === "INPUT" || element.tagName === "TEXTAREA"));
+}
+
 /**
  * Main screen displaying election reports cards, live previews, and the sent confirmation bar.
  */
 function ReportsScreen({ app, state, profile, storageFailed }) {
-  const [hasFieldFocus, setHasFieldFocus] = useState(false);
+  const [fieldFocused, setFieldFocused] = useState(false);
   const lastScrolledCardRef = useRef(null);
 
   function scrollToCard(cardName) {
@@ -463,23 +475,18 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [state.currentCard]);
 
+  // The sent bar hides while a field has focus (the keyboard is up), as on Android. A focused input that a render
+  // removes fires no focusout in Chrome, so the real focus is read again after every commit, and after each focus
+  // change once it has settled.
+  const readFocus = () => setFieldFocused(isTextField(document.activeElement));
+  useEffect(readFocus);
   useEffect(() => {
-    function updateFocus() {
-      const active = document.activeElement;
-      const isInput = Boolean(
-        active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")
-      );
-      setHasFieldFocus(isInput);
-    }
-    window.addEventListener("focus", updateFocus, true);
-    window.addEventListener("blur", updateFocus, true);
-    document.addEventListener("focusin", updateFocus);
-    document.addEventListener("focusout", updateFocus);
+    const later = () => setTimeout(readFocus, 0);
+    document.addEventListener("focusin", later);
+    document.addEventListener("focusout", later);
     return () => {
-      window.removeEventListener("focus", updateFocus, true);
-      window.removeEventListener("blur", updateFocus, true);
-      document.removeEventListener("focusin", updateFocus);
-      document.removeEventListener("focusout", updateFocus);
+      document.removeEventListener("focusin", later);
+      document.removeEventListener("focusout", later);
     };
   }, []);
 
@@ -487,7 +494,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
     if (document.activeElement && typeof document.activeElement.blur === "function") {
       document.activeElement.blur();
     }
-    setHasFieldFocus(false);
+    setFieldFocused(false);
     const request = app.send(action, confirmed);
     if (request) {
       location.href = smsUri(request.number, request.text, isIos(navigator));
@@ -496,6 +503,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 
   function handleOpenSetup() {
     history.pushState({ setup: true }, "");
+    setupEntryPushed = true;
     app.openSetup();
   }
 
@@ -503,12 +511,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
     ? `${profile.coordinatorName} (${profile.coordinatorNumber})`
     : profile.coordinatorNumber;
 
-  const isInputActive = Boolean(
-    typeof document !== "undefined" &&
-      document.activeElement &&
-      (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")
-  );
-  const showSentBar = state.undo != null && !hasFieldFocus && !isInputActive;
+  const showSentBar = state.undo != null && !fieldFocused;
 
   return html`
     <header class="top-bar">
@@ -562,7 +565,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 /** Warning banner shown inside web views of social networks. */
 function InAppBrowserWarning() {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
-  const isInApp = /FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(ua);
+  const isInApp = /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Viber|Line\//i.test(ua);
   if (!isInApp) return null;
 
   return html`
@@ -1149,7 +1152,7 @@ function SentBar({ undo, onUndo, onDismiss }) {
 }
 
 /** Modal alert dialog with Escape and focus management. */
-function AlertDialog({ text, confirmText, onConfirm, dismissText, onDismiss }) {
+function AlertDialog({ text, confirmText, onConfirm, dismissText, onDismiss, onCancel = onDismiss }) {
   const dialogRef = useRef(null);
 
   useEffect(() => {
@@ -1174,7 +1177,7 @@ function AlertDialog({ text, confirmText, onConfirm, dismissText, onDismiss }) {
   }, [onDismiss]);
 
   return html`
-    <div class="dialog-backdrop" onClick=${onDismiss}>
+    <div class="dialog-backdrop" onClick=${onCancel}>
       <div
         class="dialog"
         role="dialog"
