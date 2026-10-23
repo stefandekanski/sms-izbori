@@ -94,11 +94,107 @@ if (typeof window !== "undefined") {
   window.__app = app;
 }
 
+// Setup has changes not saved yet; set by SetupScreen.
+let setupDirty = false;
+
 // Register service worker on load if supported
 if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js").then((registration) => {
+      // An installed app that comes back from the background doesn't load the page again, so the
+      // browser wouldn't look for a new version; look every time the page shows.
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") registration.update().catch(() => {});
+      });
+    }).catch(() => {});
   });
+  reloadOnNewVersion();
+}
+
+// sw.js lets a new version take over as soon as it holds every file, but this page still runs the
+// old code. Load the page again when that loses nothing: at once, unless a field has focus or Setup
+// has changes not saved yet (the profile, reports and drafts are in localStorage and survive a
+// reload); otherwise the next time the page is hidden, such as when the messaging app opens.
+function reloadOnNewVersion() {
+  // On the first visit the worker takes charge of a page that already runs the newest code.
+  if (!navigator.serviceWorker.controller) return;
+  let reloading = false;
+  const reload = () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (document.visibilityState === "hidden" || !(isTextField(document.activeElement) || setupDirty)) {
+      reload();
+      return;
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") reload();
+    });
+  });
+}
+
+// Chrome offers installing only through this event, which can come before the screen that wants it
+// is shown, so it is kept here for every screen.
+let installPrompt = null;
+let appInstalled = false;
+let alreadyInstalled = false;
+const installListeners = new Set();
+function changeInstall(change) {
+  change();
+  installListeners.forEach((listener) => listener());
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    changeInstall(() => {
+      installPrompt = event;
+    });
+  });
+  window.addEventListener("appinstalled", () =>
+    changeInstall(() => {
+      installPrompt = null;
+      appInstalled = true;
+    })
+  );
+  // Chrome on Android tells an installed web app's own pages that it is installed (the manifest
+  // names it under related_applications); then there is nothing to install.
+  if (!isStandalone()) {
+    navigator.getInstalledRelatedApps?.()
+      .then((apps) => {
+        if (apps.length > 0) changeInstall(() => {
+          alreadyInstalled = true;
+        });
+      })
+      .catch(() => {});
+  }
+}
+
+function useInstall() {
+  const [, setVersion] = useState(0);
+  useEffect(() => {
+    const listener = () => setVersion((v) => v + 1);
+    installListeners.add(listener);
+    return () => installListeners.delete(listener);
+  }, []);
+  return { prompt: installPrompt, installed: appInstalled, alreadyInstalled };
+}
+
+async function promptInstall() {
+  const event = installPrompt;
+  if (!event) return;
+  // A prompt can be shown only once.
+  changeInstall(() => {
+    installPrompt = null;
+  });
+  event.prompt();
+  try {
+    const choice = await event.userChoice;
+    if (choice?.outcome === "accepted") changeInstall(() => {
+      appInstalled = true;
+    });
+  } catch {}
 }
 
 /** Formats epoch timestamp as 24h HH:mm. */
@@ -123,6 +219,9 @@ function isStandalone() {
  */
 function App() {
   const [state, setState] = useState(() => app.getState());
+  const [welcomeDone, setWelcomeDone] = useState(
+    () => isStandalone() || rawStorage.getItem("sms_izbori.welcome") === "browser"
+  );
 
   useEffect(() => {
     return app.subscribe(setState);
@@ -150,6 +249,19 @@ function App() {
 
   const profile = state.profile;
   const isEditingSetup = state.showSetup || profile == null;
+
+  if (profile == null && !welcomeDone) {
+    return html`
+      <div class="screen-container">
+        <${WelcomeScreen}
+          onContinue=${() => {
+            rawStorage.setItem("sms_izbori.welcome", "browser");
+            setWelcomeDone(true);
+          }}
+        />
+      </div>
+    `;
+  }
 
   return html`
     <div class="screen-container">
@@ -201,6 +313,14 @@ function SetupScreen({ app, profile, storageFailed }) {
   }
 
   const leavingRef = useRef(false);
+
+  // A new version holds back its reload while this form has changes (see reloadOnNewVersion).
+  useEffect(() => {
+    setupDirty = profile == null ? Boolean(bm || name || number) : changed;
+  });
+  useEffect(() => () => {
+    setupDirty = false;
+  }, []);
 
   function leave() {
     if (changed) {
@@ -583,10 +703,126 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
   `;
 }
 
+/** First screen in a browser: what the app does, and installing it, so that it is then used like
+ * any other app. An app's own browser can't install, so there it only leads on to Chrome or
+ * Safari. "Nastavi bez instaliranja" keeps the page usable wherever installing doesn't work. */
+function WelcomeScreen({ onContinue }) {
+  return html`
+    <header class="top-bar">
+      <div class="top-bar-title">
+        <h1>SMS Izbori</h1>
+      </div>
+    </header>
+
+    <main class="content-scroll">
+      <div class="welcome-text">
+        <p>Aplikacija za kontrolore na biračkom mestu.</p>
+        <p>
+          Jednom upišeš broj biračkog mesta, svoje ime i prezime i broj koordinatora. Posle svako javljanje
+          (upisani, izlaznost, glasanje van BM, rezultati) ide jednim dodirom: otvori se poruka sa već
+          napisanim tekstom, a ti je samo pošalješ.
+        </p>
+        <p>Podaci ostaju samo na tvom telefonu. Radi i bez interneta; za slanje poruke treba samo signal.</p>
+      </div>
+
+      ${IN_APP_BROWSER ? html`<${InAppBrowserWarning} welcome />` : html`<${InstallSteps} />`}
+
+      <button type="button" class="btn-text btn-full-width" onClick=${onContinue}>
+        Nastavi bez instaliranja
+      </button>
+    </main>
+  `;
+}
+
+/** Installing, the way the browser this page runs in allows it. */
+function InstallSteps() {
+  const install = useInstall();
+  // Chrome sends its offer soon after the page loads; until then the menu steps would only flash.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (install.installed || install.alreadyInstalled) {
+    return html`
+      <div class="install-card" role="status">
+        <h2 class="install-card-title">
+          ${install.installed ? "Aplikacija je instalirana" : "Aplikacija je već instalirana"}
+        </h2>
+        <div>Otvori „SMS Izbori“ kao svaku drugu aplikaciju.</div>
+      </div>
+    `;
+  }
+
+  if (isIos(navigator)) {
+    return html`
+      <div class="install-card">
+        <h2 class="install-card-title">Dodaj aplikaciju na početni ekran</h2>
+        <${IosSteps} />
+      </div>
+    `;
+  }
+
+  if (install.prompt) {
+    return html`
+      <div class="install-card">
+        <h2 class="install-card-title">Instaliraj aplikaciju</h2>
+        <button type="button" class="btn-primary" onClick=${promptInstall}>Instaliraj</button>
+      </div>
+    `;
+  }
+
+  if (!waited) return null;
+
+  // Firefox never sends the offer, and Chrome doesn't for a while after it was turned down.
+  return html`
+    <div class="install-card">
+      <h2 class="install-card-title">Instaliraj aplikaciju</h2>
+      <ol class="install-steps">
+        <li>Otvori meni pretraživača: dugme ⋮ ili ≡.</li>
+        <li>
+          Dodirni „Instaliraj aplikaciju“ ili „Dodaj na početni ekran“ (na engleskom: „Install app“ ili „Add to
+          home screen“).
+        </li>
+      </ol>
+    </div>
+  `;
+}
+
+/** Adding to the home screen in Safari, which no page can start by itself. The home screen app
+ * keeps its data apart from Safari, so it is set up there. */
+function IosSteps({ again = false }) {
+  return html`
+    <ol class="install-steps">
+      <li>
+        Dodirni dugme Podeli (na engleskom: „Share“):
+        <span class="ios-share-chip">
+          <svg class="ios-share-icon" viewBox="0 0 24 24" role="img" aria-label="dugme Podeli">
+            <path d="M8.5 9.5H6.5V20.5H17.5V9.5H15.5" />
+            <path d="M12 2.5V14M8.5 6L12 2.5L15.5 6" />
+          </svg>
+        </span>
+        Ako ga ne vidiš, prvo dodirni •••.
+      </li>
+      <li>
+        Dodirni „Dodaj na početni ekran“ (na engleskom: „Add to Home Screen“). Ako ga ne vidiš, pomeri listu
+        nadole.
+      </li>
+      <li>Dodirni „Dodaj“ (na engleskom: „Add“).</li>
+      <li>
+        ${again
+          ? "Otvori aplikaciju „SMS Izbori“ i tamo ponovo upiši podatke: ono što je upisano ovde ne prelazi u aplikaciju."
+          : "Otvori aplikaciju „SMS Izbori“ i tamo upiši podatke."}
+      </li>
+    </ol>
+  `;
+}
+
 /** Warning banner shown inside web views of social networks. On Android its button hands the
  * page on through an intent: link, to Chrome first, where the contact picker works; whether the
- * app lets that through is up to the app. */
-function InAppBrowserWarning() {
+ * app lets that through is up to the app. On the welcome screen it is the way to install. */
+function InAppBrowserWarning({ welcome = false }) {
   if (!IN_APP_BROWSER) return null;
 
   // x-safari-https: opens Safari from some apps' browsers on iOS 17 and later; not tried in Viber.
@@ -594,7 +830,11 @@ function InAppBrowserWarning() {
     const inSafari = `x-safari-${location.protocol.replace(":", "")}://${location.host}${location.pathname}`;
     return html`
       <div class="in-app-warning" role="alert">
-        <div>Bolje otvori ovu stranicu u Safariju: ovaj pretraživač čuva upisane podatke odvojeno.</div>
+        <div>
+          ${welcome
+            ? "Aplikacija se dodaje na početni ekran iz Safarija. Prvo otvori ovu stranicu u Safariju:"
+            : "Bolje otvori ovu stranicu u Safariju: ovaj pretraživač čuva upisane podatke odvojeno."}
+        </div>
         <a class="in-app-open" href=${inSafari}>Otvori u Safariju</a>
         <div>Ako se ništa ne desi: u meniju ovog pretraživača potraži „Otvori u Safariju“ (na engleskom: „Open in Safari“).</div>
       </div>
@@ -628,7 +868,11 @@ function InAppBrowserWarning() {
 
   return html`
     <div class="in-app-warning" role="alert">
-      <div>Bolje otvori ovu stranicu u Chrome-u: ovaj pretraživač čuva upisane podatke odvojeno i ne otvara imenik.</div>
+      <div>
+        ${welcome
+          ? "Aplikacija se instalira iz Chrome-a. Prvo otvori ovu stranicu u Chrome-u:"
+          : "Bolje otvori ovu stranicu u Chrome-u: ovaj pretraživač čuva upisane podatke odvojeno i ne otvara imenik."}
+      </div>
       <a class="in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>
       ${VIBER
         ? html`<${ViberMenuSteps} />`
@@ -662,30 +906,12 @@ function ViberMenuSteps() {
   `;
 }
 
-/** Card prompting the user to install the PWA or add it to the home screen. */
+/** Card on the main screen for whoever went on without installing. */
 function InstallHintCard() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [installed, setInstalled] = useState(false);
+  const install = useInstall();
   const [dismissed, setDismissed] = useState(() => {
     return rawStorage.getItem("sms_izbori.installHint") === "dismissed";
   });
-
-  useEffect(() => {
-    function handlePrompt(e) {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    }
-    function handleInstalled() {
-      setDeferredPrompt(null);
-      setInstalled(true);
-    }
-    window.addEventListener("beforeinstallprompt", handlePrompt);
-    window.addEventListener("appinstalled", handleInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handlePrompt);
-      window.removeEventListener("appinstalled", handleInstalled);
-    };
-  }, []);
 
   if (isStandalone() || dismissed) return null;
 
@@ -694,15 +920,13 @@ function InstallHintCard() {
     setDismissed(true);
   }
 
-  const ios = isIos(navigator);
-
-  // The launcher decides where the icon goes; with every home screen page full it lands only in
-  // the app list, so say where to look.
-  if (installed) {
+  // Where the launcher puts the icon is up to the phone; whoever has installed an app knows how to
+  // find it.
+  if (install.installed) {
     return html`
       <div class="install-card" role="status">
-        <h2 class="install-card-title">Aplikacija je dodata</h2>
-        <div>Ako ikonica „SMS Izbori“ nije na početnom ekranu, nađi je među svim aplikacijama: prevuci prstom nagore od dna ekrana.</div>
+        <h2 class="install-card-title">Aplikacija je instalirana</h2>
+        <div>Otvori „SMS Izbori“ kao svaku drugu aplikaciju.</div>
         <div class="install-card-actions">
           <button type="button" class="btn-text" onClick=${dismiss}>
             U redu
@@ -712,24 +936,13 @@ function InstallHintCard() {
     `;
   }
 
-  if (deferredPrompt) {
+  if (install.prompt) {
     return html`
       <div class="install-card">
-        <h2 class="install-card-title">Dodaj na početni ekran</h2>
+        <h2 class="install-card-title">Instaliraj aplikaciju</h2>
         <div class="install-card-actions">
-          <button
-            type="button"
-            class="btn-primary"
-            onClick=${async () => {
-              deferredPrompt.prompt();
-              setDeferredPrompt(null);
-              try {
-                const choice = await deferredPrompt.userChoice;
-                if (choice?.outcome === "accepted") setInstalled(true);
-              } catch {}
-            }}
-          >
-            Dodaj na početni ekran
+          <button type="button" class="btn-primary" onClick=${promptInstall}>
+            Instaliraj
           </button>
           <button type="button" class="btn-text" onClick=${dismiss}>
             Ne sada
@@ -739,11 +952,11 @@ function InstallHintCard() {
     `;
   }
 
-  if (ios) {
+  if (isIos(navigator) && !IN_APP_BROWSER) {
     return html`
       <div class="install-card">
-        <h2 class="install-card-title">Dodaj na početni ekran</h2>
-        <div>U Safariju dodirni Podeli, pa „Dodaj na početni ekran“.</div>
+        <h2 class="install-card-title">Dodaj aplikaciju na početni ekran</h2>
+        <${IosSteps} again />
         <div class="install-card-actions">
           <button type="button" class="btn-text" onClick=${dismiss}>
             Ne sada

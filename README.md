@@ -2,7 +2,7 @@
 
 Web stranica za kontrolore na biračkom mestu: jednom upišeš broj biračkog mesta, svoje ime i broj koordinatora, a posle svako javljanje (broj upisanih, izlaznost, glasanje van BM, rezultati) ide jednim dodirom. Dugme otvara aplikaciju za poruke sa gotovim tekstom, a ti samo pritisneš Pošalji.
 
-Ništa se ne instalira i ništa se ne šalje na internet: sve što upišeš ostaje u pretraživaču na tvom telefonu. Posle prvog otvaranja stranica radi i bez interneta, a u Chrome-u može da se doda na početni ekran.
+Instalira se pravo iz pretraživača, bez prodavnice aplikacija, i ništa ne šalje na internet: sve što upišeš ostaje na tvom telefonu. Posle prvog otvaranja radi i bez interneta.
 
 ## Za razvoj
 

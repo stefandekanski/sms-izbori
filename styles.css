@@ -224,6 +224,46 @@ body {
   gap: 0.5rem;
 }
 
+.install-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.install-steps li + li {
+  margin-top: 0.5rem;
+}
+
+/* Safari's Share button in its own blue, on the page's colors as with Viber's dots. */
+.ios-share-chip {
+  display: block;
+  width: fit-content;
+  margin: 0.5rem 0;
+  padding: 0.375rem 0.625rem;
+  background-color: var(--surface);
+  border-radius: 0.5rem;
+}
+
+.ios-share-icon {
+  display: block;
+  height: 2.25rem; /* 36px */
+  width: 2.25rem;
+  fill: none;
+  stroke: #007aff; /* Safari's blue */
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Welcome screen */
+.welcome-text p {
+  margin: 0 0 0.75rem;
+}
+
+.welcome-text p:last-child {
+  margin-bottom: 0;
+}
+
 /* Report cards */
 .report-card {
   display: flex;

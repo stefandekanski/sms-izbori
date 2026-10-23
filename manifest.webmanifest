@@ -23,5 +23,11 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://stefandekanski.github.io/sms-izbori/manifest.webmanifest"
+    }
   ]
 }
