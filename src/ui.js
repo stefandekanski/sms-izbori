@@ -287,7 +287,7 @@ function SetupScreen({ app, profile, storageFailed }) {
     </header>
 
     ${storageFailed
-      ? html`<div class="storage-warning" role="alert">Ovaj preglednik ne čuva podatke. Otvori stranicu u Chrome-u ili Safariju.</div>`
+      ? html`<div class="storage-warning" role="alert">Ovaj pretraživač ne čuva podatke. Otvori stranicu u Chrome-u ili Safariju.</div>`
       : null}
 
     <main class="content-scroll">
@@ -554,7 +554,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
     </header>
 
     ${storageFailed
-      ? html`<div class="storage-warning" role="alert">Ovaj preglednik ne čuva podatke. Otvori stranicu u Chrome-u ili Safariju.</div>`
+      ? html`<div class="storage-warning" role="alert">Ovaj pretraživač ne čuva podatke. Otvori stranicu u Chrome-u ili Safariju.</div>`
       : null}
 
     <main class="content-scroll ${showSentBar ? "with-sent-bar" : ""}">
@@ -588,7 +588,7 @@ function InAppBrowserWarning() {
   if (isIos(navigator)) {
     return html`
       <div class="in-app-warning" role="alert">
-        Bolje otvori ovu stranicu u Chrome-u ili Safariju (meni ⋮ → Otvori u pregledniku): ovaj preglednik čuva upisane podatke odvojeno od njih.
+        Bolje otvori ovu stranicu u Chrome-u ili Safariju (meni ⋮ → Otvori u pretraživaču): ovaj pretraživač čuva upisane podatke odvojeno od njih.
       </div>
     `;
   }
@@ -620,11 +620,11 @@ function InAppBrowserWarning() {
 
   return html`
     <div class="in-app-warning" role="alert">
-      <div>Bolje otvori ovu stranicu u Chrome-u: ovaj preglednik čuva upisane podatke odvojeno i ne otvara imenik.</div>
+      <div>Bolje otvori ovu stranicu u Chrome-u: ovaj pretraživač čuva upisane podatke odvojeno i ne otvara imenik.</div>
       <a class="in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>
       ${VIBER
         ? html`<${ViberMenuSteps} />`
-        : html`<div>Ako se ništa ne desi: meni ⋮ → Otvori u pregledniku.</div>`}
+        : html`<div>Ako se ništa ne desi: meni ⋮ → Otvori u pretraživaču.</div>`}
     </div>
   `;
 }
