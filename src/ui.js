@@ -570,7 +570,7 @@ function InAppBrowserWarning() {
 
   return html`
     <div class="in-app-warning" role="alert">
-      Otvori ovu stranicu u Chrome-u ili Safariju (meni ⋮ → Otvori u pregledniku). Ovde dugmad za slanje možda ne rade.
+      Bolje otvori ovu stranicu u Chrome-u ili Safariju (meni ⋮ → Otvori u pregledniku): ovaj preglednik čuva upisane podatke odvojeno od njih.
     </div>
   `;
 }
