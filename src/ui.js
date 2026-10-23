@@ -622,8 +622,9 @@ function InAppBrowserWarning() {
   `;
 }
 
-/** Viber's own way out, step by step, for when the button does nothing. The photo is the corner of
- * Viber's browser bar, and the menu item is Viber's own text in Serbian and English (Viber 29.2). */
+/** Viber's own way out, step by step, for when the button does nothing. The dots are Viber's menu
+ * button as measured on a Pixel (size, spacing and color), alone so that they match both of
+ * Viber's themes; the menu item is Viber's own text in Serbian and English (Viber 29.2). */
 function ViberMenuSteps() {
   return html`
     <div class="in-app-steps">
@@ -631,14 +632,11 @@ function ViberMenuSteps() {
       <ol>
         <li>
           Gore desno na ekranu nađi tri ljubičaste tačke:
-          <span class="viber-menu-shot">
-            <img
-              src="img/viber-menu.png"
-              width="420"
-              height="160"
-              alt="Tri ljubičaste tačke u gornjem desnom uglu Vibera"
-            />
-          </span>
+          <svg class="viber-menu-dots" viewBox="0 0 11 42" role="img" aria-label="tri ljubičaste tačke">
+            <circle cx="5.5" cy="5.5" r="5.5" />
+            <circle cx="5.5" cy="21" r="5.5" />
+            <circle cx="5.5" cy="36.5" r="5.5" />
+          </svg>
         </li>
         <li>Dodirni ih. Otvoriće se meni.</li>
         <li>U meniju dodirni „Otvori u spoljašnjem pretraživaču“ (na engleskom: „Open in external browser“).</li>

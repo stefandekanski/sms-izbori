@@ -144,6 +144,7 @@ body {
 
 /* Warnings */
 .storage-warning, .in-app-warning {
+  overflow-wrap: anywhere; /* long Serbian words on a narrow screen with a large font */
   background-color: var(--error);
   color: var(--on-error);
   padding: 0.75rem 1rem;
@@ -168,46 +169,31 @@ body {
   text-decoration: none;
 }
 
+/* On the page's own colors, so the purple dots show the same in light and dark mode. */
 .in-app-steps {
   margin-top: 0.75rem;
+  padding: 0.75rem;
+  background-color: var(--surface);
+  color: var(--on-surface);
+  border-radius: 0.75rem; /* 12px */
   text-align: left;
 }
 
 .in-app-steps ol {
   margin: 0.25rem 0 0;
-  padding-left: 1.5rem;
+  padding-left: 1.25rem;
 }
 
 .in-app-steps li {
   margin-top: 0.5rem;
 }
 
-/* The photo of Viber's bar corner, with a ring around the three dots. */
-.viber-menu-shot {
-  position: relative;
+.viber-menu-dots {
   display: block;
-  width: 13rem;
-  max-width: 100%;
-  margin-top: 0.5rem;
-}
-
-.viber-menu-shot img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 0.5rem;
-}
-
-.viber-menu-shot::after {
-  content: "";
-  position: absolute;
-  left: 87.4%;
-  top: 52.5%;
-  width: 20%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-  border: 3px solid #ffcc00;
-  border-radius: 50%;
+  height: 2.5rem; /* 40px */
+  width: auto;
+  margin: 0.5rem 0 0 0.5rem;
+  fill: #7360f2; /* Viber's purple */
 }
 
 /* Install hint card */

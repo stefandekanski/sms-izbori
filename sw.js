@@ -19,7 +19,6 @@ const ASSETS = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
-  "./img/viber-menu.png",
 ];
 
 self.addEventListener("install", (event) => {
