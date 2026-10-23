@@ -932,30 +932,56 @@ function InputArea({ children }) {
   `;
 }
 
+/** Waits for the keyboard animation, so the block lands above the keyboard and not under it. */
+const KEYBOARD_SETTLE_MS = 300;
+
 /**
- * Whole-number field keeping only digits; brings the card's input block into view after keyboard settles.
+ * Whole-number field keeping only digits. While it has focus it keeps the card's input block (fields, preview, send
+ * button) above the keyboard, as the Android app does: again after every digit, since the preview appears with the
+ * first one, and whenever the keyboard changes the visible height. A block taller than the screen keeps the field.
  */
 function CountField({ value, onInput, label, tag, supportingText, revealRef }) {
   const inputRef = useRef(null);
   const timerRef = useRef(null);
+  const focusedRef = useRef(false);
+
+  function reveal() {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      const block = revealRef?.current;
+      if (!focusedRef.current || !block) return;
+      const visible = globalThis.visualViewport?.height ?? globalThis.innerHeight;
+      if (block.getBoundingClientRect().height > visible) {
+        inputRef.current?.scrollIntoView({ block: "nearest" });
+      } else {
+        block.scrollIntoView({ block: "nearest" });
+      }
+    }, KEYBOARD_SETTLE_MS);
+  }
+
+  useEffect(() => {
+    if (focusedRef.current) reveal();
+  }, [value]);
+
+  useEffect(() => {
+    const viewport = globalThis.visualViewport;
+    const onResize = () => {
+      if (focusedRef.current) reveal();
+    };
+    viewport?.addEventListener("resize", onResize);
+    return () => {
+      viewport?.removeEventListener("resize", onResize);
+      clearTimeout(timerRef.current);
+    };
+  }, []);
 
   function handleFocus() {
-    if (revealRef?.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        const block = revealRef.current;
-        if (!block) return;
-        const rect = block.getBoundingClientRect();
-        if (rect.height > window.innerHeight) {
-          inputRef.current?.scrollIntoView({ block: "nearest" });
-        } else {
-          block.scrollIntoView({ block: "nearest" });
-        }
-      }, 300);
-    }
+    focusedRef.current = true;
+    reveal();
   }
 
   function handleBlur() {
+    focusedRef.current = false;
     clearTimeout(timerRef.current);
   }
 
