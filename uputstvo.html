@@ -34,9 +34,19 @@
       <section class="guide-section">
         <h2>Video: kako se šalje</h2>
         <p>30 sekundi, bez zvuka. Isto je za svako javljanje.</p>
-        <video id="video" class="guide-video" src="video/slanje.mp4" poster="video/slanje.jpg" width="720" height="1600"
-               controls playsinline muted preload="none"
-               aria-label="Video: upisuje se broj, dodiruje plavo dugme, u Porukama strelica za slanje, pa povratak u SMS Izbori i „Da, dodirnuta je“"></video>
+        <!-- Its own controls, not the browser's: the browser's differ by phone, and on some the pause button
+             stays over the picture. One tap anywhere plays or pauses; the big button shows only while it stands. -->
+        <div class="guide-video">
+          <video id="video" src="video/slanje.mp4" poster="video/slanje.jpg" width="720" height="1600"
+                 playsinline muted preload="none"
+                 aria-label="Video: upisuje se broj, dodiruje plavo dugme, u Porukama strelica za slanje, pa povratak u SMS Izbori i „Da, dodirnuta je“"></video>
+          <button type="button" class="guide-video-toggle" aria-label="Pusti video">
+            <span class="guide-video-play" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="40" height="40"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
+            </span>
+          </button>
+          <div class="guide-video-progress" aria-hidden="true"><div></div></div>
+        </div>
       </section>
 
       <section class="guide-section">
@@ -136,8 +146,23 @@
     </main>
   </div>
   <script>
+    const video = document.getElementById("video");
+    const videoBox = video.parentElement;
+    const videoToggle = videoBox.querySelector(".guide-video-toggle");
+    const videoBar = videoBox.querySelector(".guide-video-progress > div");
+    const showVideoState = () => {
+      const playing = !video.paused && !video.ended;
+      videoBox.classList.toggle("playing", playing);
+      videoToggle.setAttribute("aria-label", playing ? "Zaustavi video" : "Pusti video");
+    };
+    const playVideo = () => video.play().catch(showVideoState);
+    for (const name of ["play", "pause", "ended"]) video.addEventListener(name, showVideoState);
+    video.addEventListener("timeupdate", () => {
+      videoBar.style.width = (video.currentTime / video.duration) * 100 + "%";
+    });
+    videoToggle.addEventListener("click", () => (video.paused || video.ended ? playVideo() : video.pause()));
     // From the main screen's video card: the video starts at once (muted, which every browser allows).
-    if (location.hash === "#video") document.getElementById("video").play().catch(() => {});
+    if (location.hash === "#video") playVideo();
     // The coordinator's number from the app's saved data, as a button that calls it; without it the
     // text above says to call.
     try {
