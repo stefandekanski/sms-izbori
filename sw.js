@@ -1,7 +1,7 @@
 // Keeps the page working with no signal. Every file is served from one cache that a new version
 // fills completely before it takes over, so a weak connection can never mix old and new modules.
 // tools/deploy-web.sh stamps VERSION from the site's files, so any change makes a new worker.
-const VERSION = "8a06c2e3dc39";
+const VERSION = "bedd263aa9e6";
 const CACHE_NAME = `sms-izbori-${VERSION}`;
 const ASSETS = [
   "./",
