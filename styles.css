@@ -882,6 +882,69 @@ body {
   gap: 0.5rem;
 }
 
+/* Guide (uputstvo.html): short sections with room between them */
+.guide {
+  gap: 2rem;
+}
+
+.guide-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.guide-section h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.guide-section p {
+  margin: 0;
+}
+
+.guide-key {
+  border: 2px solid var(--primary);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.mark-sent {
+  color: var(--sent);
+  font-weight: 600;
+}
+
+.mark-awaiting {
+  color: var(--awaiting);
+  background-color: var(--awaiting-container);
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+  font-weight: 600;
+}
+
+.mark-check {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.mark-todo {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.guide-link {
+  color: var(--primary);
+  font-weight: 500;
+}
+
 /* Dialogs */
 .dialog-backdrop {
   position: fixed;

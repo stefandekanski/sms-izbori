@@ -226,6 +226,40 @@ function isStandalone() {
   );
 }
 
+/** The guide (uputstvo.html), from the top bar. It is a page of its own, so that it can also be sent
+ * as a link and opens without the app. */
+function GuideLink({ onClick }) {
+  return html`
+    <a class="btn-icon" href="uputstvo.html" aria-label="Uputstvo" onClick=${onClick}>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path
+          d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"
+        />
+      </svg>
+    </a>
+  `;
+}
+
+// What was typed in the first Setup, kept for this tab while the guide is open; nothing is saved yet
+// then, and coming back loads the app anew.
+const SETUP_DRAFT_KEY = "sms_izbori.setupDraft";
+
+function keepSetupDraft(draft) {
+  try {
+    sessionStorage.setItem(SETUP_DRAFT_KEY, JSON.stringify(draft));
+  } catch {}
+}
+
+function takeSetupDraft() {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(SETUP_DRAFT_KEY));
+    sessionStorage.removeItem(SETUP_DRAFT_KEY);
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Root component that manages subscription to createApp state and screen switching.
  */
@@ -288,10 +322,11 @@ function App() {
  * Setup screen for entering BM, voter name, and coordinator phone number.
  */
 function SetupScreen({ app, profile, storageFailed }) {
-  const [bm, setBm] = useState(profile ? profile.bm : "");
-  const [name, setName] = useState(profile ? profile.name : "");
-  const [number, setNumber] = useState(profile ? profile.coordinatorNumber : "");
-  const [pickedName, setPickedName] = useState(profile ? profile.coordinatorName : null);
+  const [draft] = useState(() => (profile == null ? takeSetupDraft() : null));
+  const [bm, setBm] = useState(profile ? profile.bm : draft?.bm ?? "");
+  const [name, setName] = useState(profile ? profile.name : draft?.name ?? "");
+  const [number, setNumber] = useState(profile ? profile.coordinatorNumber : draft?.number ?? "");
+  const [pickedName, setPickedName] = useState(profile ? profile.coordinatorName : draft?.pickedName ?? null);
   const [errors, setErrors] = useState([]);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -419,7 +454,11 @@ function SetupScreen({ app, profile, storageFailed }) {
       <div class="top-bar-title">
         <h1>Podešavanje</h1>
       </div>
-      <div class="top-bar-actions"></div>
+      <div class="top-bar-actions">
+        ${profile == null
+          ? html`<${GuideLink} onClick=${() => keepSetupDraft({ bm, name, number, pickedName })} />`
+          : null}
+      </div>
     </header>
 
     ${storageFailed
@@ -673,6 +712,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
         <div class="top-bar-subtitle">Šalje se: ${recipient}</div>
       </div>
       <div class="top-bar-actions">
+        <${GuideLink} />
         <button
           type="button"
           class="btn-icon"
@@ -764,6 +804,7 @@ function WelcomeScreen({ onContinue }) {
             <p class="welcome-intro">
               Jednom upišeš podatke, a svako javljanje šalješ jednim dodirom kao SMS. Radi i bez interneta.
             </p>
+            <a class="guide-link" href="uputstvo.html">Kako se koristi? Kratko uputstvo</a>
           `}
       ${IN_APP_BROWSER
         ? html`<${InAppBrowserWarning} welcome onStuck=${onStuck} />`

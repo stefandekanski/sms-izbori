@@ -6,6 +6,7 @@ const CACHE_NAME = `sms-izbori-${VERSION}`;
 const ASSETS = [
   "./",
   "./index.html",
+  "./uputstvo.html",
   "./styles.css",
   "./manifest.webmanifest",
   "./src/ui.js",
@@ -49,10 +50,10 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
-    // Navigations may carry tracking parameters from the app that shared the link.
-    const cached = event.request.mode === "navigate"
-      ? await cache.match("./index.html")
-      : await cache.match(event.request, { ignoreSearch: true });
+    // Navigations may carry tracking parameters from the app that shared the link. A page of its own (the
+    // guide) is served as itself, any other address in scope as the app.
+    const cached = await cache.match(event.request, { ignoreSearch: true }) ??
+      (event.request.mode === "navigate" ? await cache.match("./index.html") : undefined);
     return cached ?? fetch(event.request);
   })());
 });
