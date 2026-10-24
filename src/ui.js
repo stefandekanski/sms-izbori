@@ -1369,7 +1369,6 @@ function VanBmCard({ state, profile, app, onSend }) {
           ? "Komisija je formirana"
           : "Ponovo javi da je komisija formirana"}
       </button>
-      <${SendHint} />
       ${log.komisija
         ? html`
             <${SentLine}
@@ -1573,7 +1572,6 @@ function SendArea({ label, issue, onSend, onConfirm }) {
       <button type="button" class="btn-primary" onClick=${onSend}>
         ${label}
       </button>
-      <${SendHint} />
       <${IssueBlock} issue=${issue} onConfirm=${onConfirm} />
     </div>
   `;
@@ -1655,21 +1653,6 @@ function MessagePreview({ text }) {
         ${copied ? "Kopirano" : "Kopiraj"}
       </button>
     </div>
-  `;
-}
-
-/** Under every send button: the page only fills in the message, and sending it is done in Messages. */
-function SendHint() {
-  return html`<p class="send-hint">Otvara Poruke. Poruka ode tek kad tamo dodirneš <${SendArrow} />.</p>`;
-}
-
-/** Messages' send button as a small round icon, the way it looks there (a paper plane or an arrow in a
- * circle), so that it is recognized in Messages. */
-function SendArrow() {
-  return html`
-    <span class="send-arrow-chip" role="img" aria-label="strelicu za slanje">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
-    </span>
   `;
 }
 
