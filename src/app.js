@@ -1,8 +1,10 @@
 import {
   checks,
   currentCard,
+  ELECTION_DAY,
   emptyDrafts,
   emptyLog,
+  entryFor,
   latestVanBm,
   normalizeBm,
   normalizeName,
@@ -12,6 +14,7 @@ import {
   registered,
   reportText,
   sentIzlaznost,
+  sentSince,
   sentSlots,
   slotLabel,
   suggestedSlot,
@@ -135,7 +138,7 @@ function prepareRezultati(current) {
 /**
  * Creates the app state and actions controller, ported from AppViewModel.
  */
-export function createApp({ store, now = () => new Date() }) {
+export function createApp({ store, now = () => new Date(), electionDay = ELECTION_DAY }) {
   const initialProfile = store.loadProfile();
   const pendingUndo = store.loadUndo();
 
@@ -158,8 +161,27 @@ export function createApp({ store, now = () => new Date() }) {
   let currentPendingUndo = pendingUndo;
   const listeners = new Set();
 
+  // From election day on, the reports sent before it were tests (sending one the evening before was
+  // advised), and the day's real ones must not look done already: they are dropped, and a question
+  // still open about one of them with them. Before the day nothing changes, so a test shows as sent.
+  function withoutTests(s) {
+    if (now().getTime() < electionDay) return s;
+    const log = sentSince(s.log, electionDay);
+    if (log === s.log) return s;
+    store.saveLog(log);
+    let undo = s.undo;
+    if (undo != null && entryFor(log, undo) == null) {
+      currentPendingUndo = null;
+      store.saveUndo(null);
+      undo = null;
+    }
+    return { ...s, log, undo };
+  }
+
+  state = calculateWithClock(withoutTests(state), store, now);
+
   function update(change) {
-    state = calculateWithClock(change(state), store, now);
+    state = calculateWithClock(withoutTests(change(state)), store, now);
     for (const listener of listeners) {
       listener(state);
     }

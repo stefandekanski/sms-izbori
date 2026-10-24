@@ -114,6 +114,35 @@ export function reportText(report, profile) {
 }
 
 /** An empty report log with no reports sent yet. */
+/** Midnight at the start of election day, on the phone's clock (2026-10-25). */
+export const ELECTION_DAY = new Date(2026, 9, 25).getTime();
+
+/**
+ * The log without the reports sent before `since` (epoch ms), or the same log when there are none.
+ * A test sent before election day must not count as the real report on the day.
+ */
+export function sentSince(log, since) {
+  const keep = (entry) => entry == null || entry.at >= since;
+  const izlaznost = Object.fromEntries(Object.entries(log.izlaznost ?? {}).filter(([, entry]) => keep(entry)));
+  const dropped =
+    !keep(log.upisani) || !keep(log.vanBm) || !keep(log.komisija) || !keep(log.rezultati) ||
+    Object.keys(izlaznost).length !== Object.keys(log.izlaznost ?? {}).length;
+  if (!dropped) return log;
+  return {
+    ...log,
+    upisani: keep(log.upisani) ? log.upisani : null,
+    izlaznost,
+    vanBm: keep(log.vanBm) ? log.vanBm : null,
+    komisija: keep(log.komisija) ? log.komisija : null,
+    rezultati: keep(log.rezultati) ? log.rezultati : null,
+  };
+}
+
+/** The log's entry for a report, by its type (and hour). */
+export function entryFor(log, report) {
+  return report.type === "izlaznost" ? log.izlaznost?.[report.slot] : log[report.type];
+}
+
 export function emptyLog() {
   return {
     upisani: null,

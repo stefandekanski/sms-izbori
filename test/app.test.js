@@ -60,6 +60,9 @@ function createFakeStore(initial = {}) {
   };
 }
 
+// Election morning: reports recorded before election day are dropped on the day.
+const EARLY = new Date(2026, 9, 25, 6, 0).getTime();
+
 function makeClock(hhmm = "10:05") {
   let [h, m] = hhmm.split(":").map(Number);
   const now = () => new Date(2026, 9, 25, h, m);
@@ -165,7 +168,7 @@ test("AppViewModelTest.closeSetup_onFirstRun_staysOpen", () => {
 });
 
 test("AppViewModelTest.clearReports_keepsProfile", () => {
-  const initialLog = record(emptyLog(), { type: "izlaznost", slot: 8, count: 50 }, 1);
+  const initialLog = record(emptyLog(), { type: "izlaznost", slot: 8, count: 50 }, EARLY);
   const initialDrafts = { ...emptyDrafts(), mi: "5" };
   const store = createFakeStore({ profile: petar, log: initialLog, drafts: initialDrafts });
   const app = createApp({ store, now: makeClock() });
@@ -365,7 +368,7 @@ test("AppViewModelTest.send_izlaznost_empty_namesTheSlot", () => {
 });
 
 test("AppViewModelTest.send_izlaznost_warning_thenConfirm", () => {
-  const initialLog = record(emptyLog(), { type: "izlaznost", slot: 10, count: 150 }, 1);
+  const initialLog = record(emptyLog(), { type: "izlaznost", slot: 10, count: 150 }, EARLY);
   const store = createFakeStore({ profile: petar, log: initialLog });
   const now = makeClock("12:05");
   const app = createApp({ store, now });
@@ -408,8 +411,8 @@ test("AppViewModelTest.selectingASlot_hidesIzlaznostIssue", () => {
 
 test("AppViewModelTest.send_izlaznost_checksAgainstRegisteredAndLaterSlots", () => {
   let log = emptyLog();
-  log = record(log, { type: "upisani", upisani: 1234, vanBm: null }, 1);
-  log = record(log, { type: "izlaznost", slot: 14, count: 190 }, 2);
+  log = record(log, { type: "upisani", upisani: 1234, vanBm: null }, EARLY);
+  log = record(log, { type: "izlaznost", slot: 14, count: 190 }, EARLY + 2);
   const store = createFakeStore({ profile: petar, log });
   const now = makeClock("14:20");
   const app = createApp({ store, now });
@@ -426,7 +429,7 @@ test("AppViewModelTest.send_izlaznost_checksAgainstRegisteredAndLaterSlots", () 
 });
 
 test("AppViewModelTest.send_vanBm", () => {
-  const initialLog = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: null }, 1);
+  const initialLog = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: null }, EARLY);
   const store = createFakeStore({ profile: petar, log: initialLog });
   const app = createApp({ store, now: makeClock() });
   app.setVanBm("7");
@@ -486,9 +489,9 @@ test("AppViewModelTest.send_rezultati_needsBothNumbers", () => {
 
 test("AppViewModelTest.send_rezultati_checksAgainstTwentyPlusLatestVanBm", () => {
   let log = emptyLog();
-  log = record(log, { type: "upisani", upisani: 1234, vanBm: 5 }, 1);
-  log = record(log, { type: "vanBm", count: 10 }, 2);
-  log = record(log, { type: "izlaznost", slot: 20, count: 1250 }, 3);
+  log = record(log, { type: "upisani", upisani: 1234, vanBm: 5 }, EARLY);
+  log = record(log, { type: "vanBm", count: 10 }, EARLY + 2);
+  log = record(log, { type: "izlaznost", slot: 20, count: 1250 }, EARLY + 3);
   const store = createFakeStore({ profile: petar, log });
   const now = makeClock("21:40");
   const app = createApp({ store, now });
@@ -527,7 +530,7 @@ test("AppViewModelTest.send_usesTheCurrentCoordinator", () => {
 // Undo
 
 test("AppViewModelTest.undo_restoresPreviousValueAndDraft", () => {
-  const earlier = record(emptyLog(), { type: "izlaznost", slot: 10, count: 150 }, 1);
+  const earlier = record(emptyLog(), { type: "izlaznost", slot: 10, count: 150 }, EARLY);
   const store = createFakeStore({ profile: petar, log: earlier });
   const now = makeClock("10:20");
   const app = createApp({ store, now });
@@ -587,7 +590,7 @@ test("AppViewModelTest.dismissUndo_isRemembered", () => {
 // Editing a sent Upisani
 
 test("AppViewModelTest.editUpisani_prefillsTheSentNumbers", () => {
-  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, 1);
+  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, EARLY);
   const store = createFakeStore({ profile: petar, log });
   const now = makeClock("06:30");
   const app = createApp({ store, now });
@@ -599,7 +602,7 @@ test("AppViewModelTest.editUpisani_prefillsTheSentNumbers", () => {
 });
 
 test("AppViewModelTest.editUpisani_keepsWhatWasAlreadyTyped", () => {
-  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, 1);
+  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, EARLY);
   const drafts = { ...emptyDrafts(), upisani: "1240" };
   const store = createFakeStore({ profile: petar, log, drafts });
   const now = makeClock("06:30");
@@ -610,7 +613,7 @@ test("AppViewModelTest.editUpisani_keepsWhatWasAlreadyTyped", () => {
 });
 
 test("AppViewModelTest.editUpisani_staysOpenUntilASendSucceeds", () => {
-  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, 1);
+  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, EARLY);
   const store = createFakeStore({ profile: petar, log });
   const now = makeClock("06:30");
   const app = createApp({ store, now });
@@ -627,7 +630,7 @@ test("AppViewModelTest.editUpisani_staysOpenUntilASendSucceeds", () => {
 });
 
 test("AppViewModelTest.cancelEditUpisani_closesAndClearsTheFields", () => {
-  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, 1);
+  const log = record(emptyLog(), { type: "upisani", upisani: 1234, vanBm: 5 }, EARLY);
   const store = createFakeStore({ profile: petar, log });
   const now = makeClock("06:30");
   const app = createApp({ store, now });
@@ -650,4 +653,64 @@ test("AppViewModelTest.dismissUndo_keepsTheLog", () => {
   assert.deepEqual(store.log.komisija?.value, { type: "komisija" });
   app.undo();
   assert.deepEqual(store.log.komisija?.value, { type: "komisija" });
+});
+
+// A test sent the evening before must not count as the real report on election day.
+const EVENING_BEFORE = new Date(2026, 9, 24, 20, 0).getTime();
+const upisaniTest = { type: "upisani", upisani: 1234, vanBm: null };
+
+test("electionDay_dropsAReportSentTheDayBefore", () => {
+  const log = record(emptyLog(), upisaniTest, EVENING_BEFORE);
+  const store = createFakeStore({ profile: petar, log });
+  const app = createApp({ store, now: makeClock("06:30") });
+  assert.equal(app.getState().log.upisani, null);
+  assert.equal(store.log.upisani, null);
+  assert.equal(app.getState().currentCard, "upisani");
+});
+
+test("electionDay_keepsTheTestTheDayBefore", () => {
+  const log = record(emptyLog(), upisaniTest, EVENING_BEFORE);
+  const store = createFakeStore({ profile: petar, log });
+  const app = createApp({ store, now: () => new Date(2026, 9, 24, 21, 0) });
+  assert.deepEqual(app.getState().log.upisani?.value, upisaniTest);
+});
+
+test("electionDay_keepsWhatWasSentOnTheDay", () => {
+  let log = record(emptyLog(), upisaniTest, EARLY);
+  log = record(log, { type: "izlaznost", slot: 8, count: 40 }, EVENING_BEFORE);
+  const store = createFakeStore({ profile: petar, log });
+  const app = createApp({ store, now: makeClock("10:05") });
+  assert.deepEqual(app.getState().log.upisani?.value, upisaniTest);
+  assert.deepEqual(app.getState().log.izlaznost, {});
+  assert.deepEqual(store.log.izlaznost, {});
+});
+
+test("electionDay_dropsTheOpenQuestionAboutATest", () => {
+  const log = record(emptyLog(), upisaniTest, EVENING_BEFORE);
+  const undo = { report: upisaniTest, log: emptyLog(), drafts: emptyDrafts() };
+  const store = createFakeStore({ profile: petar, log, undo });
+  const app = createApp({ store, now: makeClock("06:30") });
+  assert.equal(app.getState().undo, null);
+  assert.equal(store.undo, null);
+});
+
+test("electionDay_keepsTheOpenQuestionAboutASendOnTheDay", () => {
+  let log = record(emptyLog(), { type: "izlaznost", slot: 8, count: 40 }, EVENING_BEFORE);
+  log = record(log, upisaniTest, EARLY);
+  const undo = { report: upisaniTest, log: emptyLog(), drafts: emptyDrafts() };
+  const store = createFakeStore({ profile: petar, log, undo });
+  const app = createApp({ store, now: makeClock("06:30") });
+  assert.deepEqual(app.getState().undo, upisaniTest);
+});
+
+test("electionDay_anAppLeftOpenOvernightDropsTheTestAtMidnight", () => {
+  const log = record(emptyLog(), upisaniTest, EVENING_BEFORE);
+  const store = createFakeStore({ profile: petar, log });
+  let at = new Date(2026, 9, 24, 23, 59);
+  const app = createApp({ store, now: () => at });
+  assert.deepEqual(app.getState().log.upisani?.value, upisaniTest);
+  at = new Date(2026, 9, 25, 0, 1);
+  app.refresh();
+  assert.equal(app.getState().log.upisani, null);
+  assert.equal(store.log.upisani, null);
 });
