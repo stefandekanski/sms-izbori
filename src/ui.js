@@ -668,12 +668,22 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
   const [fieldFocused, setFieldFocused] = useState(false);
   const lastScrolledCardRef = useRef(null);
 
+  // The "Sada" card comes into view whole and no further, so what sits above it (the video card, the
+  // morning's first card) stays in sight when there is room. A card taller than the screen starts under the top bar.
   function scrollToCard(cardName) {
     const el = document.getElementById(`card-${cardName}`);
-    if (el) {
-      el.scrollIntoView({ block: "start" });
-      lastScrolledCardRef.current = cardName;
+    if (!el) return;
+    lastScrolledCardRef.current = cardName;
+    const margin = 16;
+    const box = el.getBoundingClientRect();
+    const topBarBottom = document.querySelector(".top-bar")?.getBoundingClientRect().bottom ?? 0;
+    const toTop = box.top - topBarBottom - margin;
+    if (toTop < 0) {
+      window.scrollBy(0, toTop);
+      return;
     }
+    const below = box.bottom + margin - window.innerHeight;
+    if (below > 0) window.scrollBy(0, Math.min(below, toTop));
   }
 
   useEffect(() => {

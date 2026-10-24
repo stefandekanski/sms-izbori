@@ -16,6 +16,15 @@
 </head>
 <body>
   <div id="app"></div>
+  <!-- Until the app draws its first screen: on a slow network the first visit takes a few seconds (after
+       that the worker serves it at once). It shows only after half a second, so a quick start doesn't flash
+       it, and styles.css hides it once #app has anything in it. -->
+  <div class="boot" role="status">
+    <img src="icons/icon-any.svg" alt="" width="72" height="72">
+    <svg class="boot-spinner" viewBox="0 0 48 48" width="48" height="48" aria-hidden="true"><circle cx="24" cy="24" r="20"/></svg>
+    <div>Učitava se…</div>
+    <div class="boot-slow">Ako dugo traje, proveri internet i otvori ponovo.</div>
+  </div>
   <noscript>Za rad aplikacije SMS Izbori potreban je JavaScript.</noscript>
 </body>
 </html>

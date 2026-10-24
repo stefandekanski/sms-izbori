@@ -75,6 +75,64 @@ body {
   max-width: 100%;
 }
 
+/* The first visit's loading screen (index.html): Material's indeterminate circular progress indicator
+   under the app's icon, until the app has drawn. */
+#app:not(:empty) ~ .boot {
+  display: none;
+}
+
+.boot {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1rem;
+  text-align: center;
+  color: var(--on-surface-variant);
+  opacity: 0;
+  animation: boot-show 0.2s 0.5s forwards;
+}
+
+.boot img {
+  border-radius: 0.875rem;
+}
+
+.boot-spinner {
+  animation: boot-turn 1.4s linear infinite;
+}
+
+.boot-spinner circle {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 1 126;
+  animation: boot-arc 1.4s ease-in-out infinite;
+}
+
+.boot-slow {
+  max-width: 20rem;
+  opacity: 0;
+  animation: boot-show 0.2s 12s forwards;
+}
+
+@keyframes boot-show {
+  to { opacity: 1; }
+}
+
+@keyframes boot-turn {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes boot-arc {
+  0% { stroke-dasharray: 1 126; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 90 126; stroke-dashoffset: -30; }
+  100% { stroke-dasharray: 90 126; stroke-dashoffset: -124; }
+}
+
 /* Top bar: grows with font scale */
 .top-bar {
   display: flex;
