@@ -703,14 +703,21 @@ test("electionDay_keepsTheOpenQuestionAboutASendOnTheDay", () => {
   assert.deepEqual(app.getState().undo, upisaniTest);
 });
 
-test("electionDay_anAppLeftOpenOvernightDropsTheTestAtMidnight", () => {
+test("electionDay_anAppLeftOpenOvernightDropsTheTestAtThree", () => {
   const log = record(emptyLog(), upisaniTest, EVENING_BEFORE);
   const store = createFakeStore({ profile: petar, log });
-  let at = new Date(2026, 9, 24, 23, 59);
+  let at = new Date(2026, 9, 25, 2, 59);
   const app = createApp({ store, now: () => at });
   assert.deepEqual(app.getState().log.upisani?.value, upisaniTest);
-  at = new Date(2026, 9, 25, 0, 1);
+  at = new Date(2026, 9, 25, 3, 1);
   app.refresh();
   assert.equal(app.getState().log.upisani, null);
   assert.equal(store.log.upisani, null);
+});
+
+test("electionDay_aTestSentAfterMidnightIsDroppedAtThree", () => {
+  const log = record(emptyLog(), upisaniTest, new Date(2026, 9, 25, 0, 30).getTime());
+  const store = createFakeStore({ profile: petar, log });
+  assert.deepEqual(createApp({ store, now: makeClock("01:00") }).getState().log.upisani?.value, upisaniTest);
+  assert.equal(createApp({ store, now: makeClock("03:00") }).getState().log.upisani, null);
 });

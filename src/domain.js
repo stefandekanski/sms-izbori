@@ -114,8 +114,12 @@ export function reportText(report, profile) {
 }
 
 /** An empty report log with no reports sent yet. */
-/** Midnight at the start of election day, on the phone's clock (2026-10-25). */
-export const ELECTION_DAY = new Date(2026, 9, 25).getTime();
+/**
+ * When election day starts for the app: 3 in the morning of 2026-10-25, on the phone's clock. Nobody uses
+ * it then (polling stations open at 7), so a test sent around midnight doesn't vanish from a screen in
+ * use. The clocks go back from 3 to 2 that night: the hour after 2 comes twice, and then 3 comes once.
+ */
+export const ELECTION_DAY = new Date(2026, 9, 25, 3, 0).getTime();
 
 /**
  * The log without the reports sent before `since` (epoch ms), or the same log when there are none.
