@@ -759,6 +759,11 @@ body {
   gap: 0.5rem;
 }
 
+.sent-block .sent-line {
+  width: auto;
+  flex: 1 1 13rem;
+}
+
 /* Sent, but not confirmed yet: one step left, for the person to do */
 .sent-line.awaiting {
   color: var(--awaiting);
@@ -777,6 +782,58 @@ body {
   font-size: 1rem;
   line-height: 1.375rem;
   color: var(--on-surface-variant);
+}
+
+/* Messages' send button, small, inside the hint under each send button */
+.send-arrow-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background-color: var(--primary);
+  vertical-align: middle;
+}
+
+.send-arrow-chip svg {
+  width: 1rem;
+  height: 1rem;
+  fill: var(--on-primary);
+}
+
+/* Messages' input bar in the sent question: the text in the box, the send arrow circled */
+.compose-drawing {
+  display: block;
+  width: 100%;
+  max-width: 20rem;
+  height: auto;
+}
+
+.compose-box {
+  fill: var(--surface);
+  stroke: var(--outline);
+  stroke-width: 2;
+}
+
+.compose-text {
+  fill: var(--on-surface);
+  font-size: 15px;
+}
+
+.compose-ring {
+  fill: none;
+  stroke: var(--awaiting);
+  stroke-width: 4;
+  stroke-dasharray: 7 5;
+}
+
+.compose-send {
+  fill: var(--primary);
+}
+
+.compose-arrow {
+  fill: var(--on-primary);
 }
 
 /* Divider & Subtitle */

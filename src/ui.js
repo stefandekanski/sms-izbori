@@ -13,6 +13,7 @@ import {
   normalizeName,
   messages,
   reportLabel,
+  reportText,
   latestVanBm,
   SETUP_ERRORS,
 } from "./domain.js";
@@ -747,8 +748,9 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
       ? html`
           <${SentBar}
             undo=${state.undo}
-            onUndo=${() => app.undo()}
-            onDismiss=${() => app.dismissUndo()}
+            profile=${profile}
+            onConfirm=${() => app.dismissUndo()}
+            onCancel=${() => app.undo()}
           />
         `
       : null}
@@ -1216,7 +1218,7 @@ function UpisaniCard({ state, profile, app, onSend }) {
                   return null;
                 })()}
                 <${SendArea}
-                  label="Pošalji broj upisanih"
+                  label="Pripremi SMS: broj upisanih"
                   issue=${state.issues["upisani"]}
                   onSend=${() => onSend("upisani", false)}
                   onConfirm=${() => onSend("upisani", true)}
@@ -1300,7 +1302,7 @@ function IzlaznostCard({ state, profile, app, onSend }) {
             return null;
           })()}
           <${SendArea}
-            label=${`Pošalji izlaznost do ${slotLabel(slot)}h`}
+            label=${`Pripremi SMS: izlaznost do ${slotLabel(slot)}h`}
             issue=${state.issues["izlaznost"]}
             onSend=${() => onSend("izlaznost", false)}
             onConfirm=${() => onSend("izlaznost", true)}
@@ -1339,7 +1341,7 @@ function VanBmCard({ state, profile, app, onSend }) {
             return null;
           })()}
           <${SendArea}
-            label="Pošalji broj prijavljenih"
+            label="Pripremi SMS: broj prijavljenih"
             issue=${state.issues["vanBm"]}
             onSend=${() => onSend("vanBm", false)}
             onConfirm=${() => onSend("vanBm", true)}
@@ -1365,7 +1367,7 @@ function VanBmCard({ state, profile, app, onSend }) {
       >
         ${log.komisija == null
           ? "Komisija je formirana"
-          : "Pošalji ponovo da je komisija formirana"}
+          : "Ponovo javi da je komisija formirana"}
       </button>
       <${SendHint} />
       ${log.komisija
@@ -1416,7 +1418,7 @@ function RezultatiCard({ state, profile, app, onSend }) {
             return null;
           })()}
           <${SendArea}
-            label="Pošalji rezultate"
+            label="Pripremi SMS: rezultati"
             issue=${state.issues["rezultati"]}
             onSend=${() => onSend("rezultati", false)}
             onConfirm=${() => onSend("rezultati", true)}
@@ -1604,7 +1606,7 @@ function IssueBlock({ issue, onConfirm }) {
           class="btn-primary btn-error"
           onClick=${onConfirm}
         >
-          Broj je tačan, pošalji
+          Broj je tačan, pripremi SMS
         </button>
       </div>
     `;
@@ -1645,7 +1647,7 @@ function MessagePreview({ text }) {
 
   return html`
     <div class="message-preview">
-      <div class="preview-label">Poruka:</div>
+      <div class="preview-label">Tekst koji ćeš poslati:</div>
       <div class="preview-box">
         <pre class="preview-text" ref=${textRef}>${text}</pre>
       </div>
@@ -1658,7 +1660,31 @@ function MessagePreview({ text }) {
 
 /** Under every send button: the page only fills in the message, and sending it is done in Messages. */
 function SendHint() {
-  return html`<p class="send-hint">Otvara aplikaciju Poruke — tamo dodirni dugme za slanje.</p>`;
+  return html`<p class="send-hint">Otvara Poruke. Poruka ode tek kad tamo dodirneš <${SendArrow} />.</p>`;
+}
+
+/** Messages' send button as a small round icon, the way it looks there (a paper plane or an arrow in a
+ * circle), so that it is recognized in Messages. */
+function SendArrow() {
+  return html`
+    <span class="send-arrow-chip" role="img" aria-label="strelicu za slanje">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+    </span>
+  `;
+}
+
+/** What Messages shows: the text still in the box where one types, and the send arrow at its right,
+ * circled. Drawn with the start of the person's own message, so that it looks like what they saw. */
+function ComposeDrawing({ profile }) {
+  return html`
+    <svg class="compose-drawing" viewBox="0 0 320 96" role="img" aria-label="Tekst u polju za pisanje, strelica za slanje desno od njega">
+      <rect class="compose-box" x="2" y="26" width="236" height="44" rx="22" />
+      <text class="compose-text" x="20" y="53">BM_${profile.bm}; …</text>
+      <circle class="compose-ring" cx="276" cy="48" r="38" />
+      <circle class="compose-send" cx="276" cy="48" r="26" />
+      <path class="compose-arrow" transform="translate(264 36)" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+    </svg>
+  `;
 }
 
 /** Whether this is the report just sent, whose sending hasn't been confirmed yet (see SentBar). */
@@ -1688,17 +1714,24 @@ function SentLine({ text, at, detail, awaiting = false }) {
 
 /** After a send, whether the SMS went. The page opens Messages with the text filled in and can't see
  * whether it was sent there, so the report shows as sent only once this is answered. It covers the
- * page, so that it isn't missed: the bar it was before was overlooked while looking at the card. */
-function SentBar({ undo, onUndo, onDismiss }) {
+ * page, so that it isn't missed: the bar it was before was overlooked while looking at the card. It asks
+ * about the tap on the arrow, with a drawing of it, not whether the message went: an older tester who
+ * left the text in Messages believed it had gone and said so. For the same reason the blue button, the
+ * one tapped without reading, is the safe answer: Messages again, where a second SMS does no harm. */
+function SentBar({ undo, profile, onConfirm, onCancel }) {
   return html`
     <div class="sent-backdrop">
       <aside class="sent-bar" role="dialog" aria-modal="true" aria-labelledby="sent-bar-title">
-        <h2 id="sent-bar-title" class="sent-bar-title">Da li je SMS poruka poslata?</h2>
+        <h2 id="sent-bar-title" class="sent-bar-title">Da li je u Porukama dodirnuta strelica?</h2>
         <div class="sent-bar-text" aria-live="polite">${reportLabel(undo)}</div>
-        <p class="sent-bar-hint">Poruka odlazi tek kad u aplikaciji Poruke dodirneš dugme za slanje (strelicu).</p>
+        <${ComposeDrawing} profile=${profile} />
+        <p class="sent-bar-hint">Bez dodira na strelicu poruka ne odlazi koordinatoru.</p>
         <div class="sent-bar-actions">
-          <button type="button" class="btn-primary" onClick=${onDismiss}>Da, poslata je</button>
-          <button type="button" class="btn-secondary" onClick=${onUndo}>Nije — vrati da pošaljem</button>
+          <a class="btn-primary" href=${smsUri(profile.coordinatorNumber, reportText(undo, profile), isIos(navigator))}>
+            Nije — otvori Poruke ponovo
+          </a>
+          <button type="button" class="btn-secondary" onClick=${onConfirm}>Da, dodirnuta je</button>
+          <button type="button" class="btn-text btn-full-width" onClick=${onCancel}>Odustani od slanja</button>
         </div>
       </aside>
     </div>
