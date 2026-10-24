@@ -10,9 +10,11 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- A short guide for people who aren't at home with phones. Text first written by Gemini 3.8 Flash
-       from the app's facts, checked against the app, then reviewed by Gemini 4 Argon; it names buttons exactly
-       as the app does. -->
+  <!-- A short guide for people who aren't at home with phones: first a video of one send (the real app
+       on a phone, with red boxes, arrows and short captions, no sound), then the same in words. Text first
+       written by Gemini 3.8 Flash from the app's facts, checked against the app, then reviewed by Gemini 4
+       Argon; it names buttons exactly as the app does. The video comes from the network, not the worker's
+       cache (see sw.js), so it needs internet; the page itself opens offline. -->
   <div class="screen-container">
     <header class="top-bar">
       <div class="top-bar-nav">
@@ -30,9 +32,17 @@
 
     <main class="content-scroll guide">
       <section class="guide-section">
+        <h2>Video: kako se šalje</h2>
+        <p>30 sekundi, bez zvuka. Isto je za svako javljanje.</p>
+        <video id="video" class="guide-video" src="video/slanje.mp4" poster="video/slanje.jpg" width="720" height="1600"
+               controls playsinline muted preload="none"
+               aria-label="Video: upisuje se broj, dodiruje plavo dugme, u Porukama strelica za slanje, pa povratak u SMS Izbori i „Da, dodirnuta je“"></video>
+      </section>
+
+      <section class="guide-section">
         <p>
-          <strong>„SMS Izbori“</strong> sastavlja SMS za koordinatora. Ti upišeš traženi broj, a poruka se otvara u
-          aplikaciji <strong>„Poruke“</strong>, spremna za slanje. Radi i bez interneta, dovoljan je signal.
+          <strong>„SMS Izbori“</strong> samo pripremi SMS za koordinatora. Ti upišeš traženi broj, a poruka se otvara
+          u drugoj aplikaciji, <strong>„Poruke“</strong>, spremna za slanje. Radi i bez interneta, dovoljan je signal.
         </p>
       </section>
 
@@ -67,6 +77,38 @@
       </section>
 
       <section class="guide-section">
+        <h2>Na dan izbora</h2>
+        <ul class="guide-list">
+          <li><strong>„Pre otvaranja“</strong>, pre 7 sati: broj upisanih birača.</li>
+          <li><strong>„Izlaznost“</strong>: koliko je glasalo. Sat je već izabran, a možeš dodirnuti i drugi.</li>
+          <li>
+            <strong>„Glasanje van BM“</strong>: broj prijavljenih. Kad se komisija formira, dodirni
+            <strong>„Komisija je formirana“</strong>.
+          </li>
+          <li><strong>„Rezultati“</strong>, posle zatvaranja: glasovi za <strong>„MI“</strong> i <strong>„ONI“</strong>.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section">
+        <h2>Ako nešto zapne</h2>
+        <ul class="guide-list">
+          <li>Poslat je pogrešan broj: pripremi i pošalji ga ponovo, sa tačnim brojem.</li>
+          <li>Nema signala: pošalji SMS ponovo kad se signal vrati.</li>
+          <li><strong>„Poruke“</strong> se ne otvaraju: dodirni <strong>„Odustani od slanja“</strong> i pozovi koordinatora.</li>
+          <li>Bilo šta drugo: pozovi koordinatora.</li>
+        </ul>
+        <div id="call-slot"></div>
+      </section>
+
+      <section class="guide-section">
+        <h2>Promena podataka</h2>
+        <p>
+          Zupčanik gore desno otvara <strong>„Podešavanje“</strong>. Dugme <strong>„Obriši sva javljanja“</strong> je
+          samo za brisanje probe. Na dan izbora ga ne diraj.
+        </p>
+      </section>
+
+      <section class="guide-section">
         <h2>Jednom, pre izbora</h2>
         <ol class="steps">
           <li>
@@ -90,42 +132,24 @@
         </ol>
       </section>
 
-      <section class="guide-section">
-        <h2>Na dan izbora</h2>
-        <ul class="guide-list">
-          <li><strong>„Pre otvaranja“</strong>, pre 7 sati: broj upisanih birača.</li>
-          <li><strong>„Izlaznost“</strong>: koliko je glasalo. Sat je već izabran, a možeš dodirnuti i drugi.</li>
-          <li>
-            <strong>„Glasanje van BM“</strong>: broj prijavljenih. Kad se komisija formira, dodirni
-            <strong>„Komisija je formirana“</strong>.
-          </li>
-          <li><strong>„Rezultati“</strong>, posle zatvaranja: glasovi za <strong>„MI“</strong> i <strong>„ONI“</strong>.</li>
-        </ul>
-      </section>
-
-      <section class="guide-section">
-        <h2>Ako nešto zapne</h2>
-        <ul class="guide-list">
-          <li>Poslat je pogrešan broj: pripremi i pošalji ga ponovo, sa tačnim brojem.</li>
-          <li>Nema signala: pošalji SMS ponovo kad se signal vrati.</li>
-          <li>
-            <strong>„Poruke“</strong> se ne otvaraju: dodirni <strong>„Odustani od slanja“</strong> i pozovi
-            koordinatora.
-          </li>
-          <li>Bilo šta drugo: pozovi koordinatora.</li>
-        </ul>
-      </section>
-
-      <section class="guide-section">
-        <h2>Promena podataka</h2>
-        <p>
-          Zupčanik gore desno otvara <strong>„Podešavanje“</strong>. Dugme <strong>„Obriši sva javljanja“</strong> je
-          samo za brisanje probe. Na dan izbora ga ne diraj.
-        </p>
-      </section>
-
       <a class="btn-primary" href="./">Nazad u aplikaciju</a>
     </main>
   </div>
+  <script>
+    // From the main screen's video card: the video starts at once (muted, which every browser allows).
+    if (location.hash === "#video") document.getElementById("video").play().catch(() => {});
+    // The coordinator's number from the app's saved data, as a button that calls it; without it the
+    // text above says to call.
+    try {
+      const profile = JSON.parse(localStorage.getItem("sms_izbori.profile") || "null");
+      if (profile?.coordinatorNumber) {
+        const call = document.createElement("a");
+        call.className = "btn-secondary";
+        call.href = "tel:" + profile.coordinatorNumber;
+        call.textContent = "Pozovi koordinatora: " + profile.coordinatorNumber;
+        document.getElementById("call-slot").append(call);
+      }
+    } catch {}
+  </script>
 </body>
 </html>

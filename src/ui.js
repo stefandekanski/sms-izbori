@@ -109,12 +109,14 @@ if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
 }
 
 // sw.js lets a new version take over as soon as it holds every file, but this page still runs the
-// old code. Load the page again when that loses nothing: at once, unless a field has focus or Setup
-// has changes not saved yet (the profile, reports and drafts are in localStorage and survive a
-// reload); otherwise the next time the page is hidden, such as when the messaging app opens.
+// old code. Load the page again when that loses nothing (the profile, reports and drafts are in
+// localStorage and survive a reload): at once, or, while a field has focus, the next time the page is
+// hidden, such as when the messaging app opens; while Setup has changes not saved yet, not before they
+// are saved or dropped.
 function reloadOnNewVersion() {
-  // On the first visit the worker takes charge of a page that already runs the newest code.
-  if (!navigator.serviceWorker.controller) return;
+  // On the first visit the worker takes charge of a page that already runs the newest code; only a
+  // later change brings new code. (A home screen app on iPhone starts that way too, and may stay open.)
+  let current = navigator.serviceWorker.controller != null;
   let reloading = false;
   const reload = () => {
     if (reloading) return;
@@ -122,12 +124,17 @@ function reloadOnNewVersion() {
     location.reload();
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (document.visibilityState === "hidden" || !(isTextField(document.activeElement) || setupDirty)) {
+    if (!current) {
+      current = true;
+      return;
+    }
+    // What Setup holds before Sačuvaj is only on the screen, so the page waits until it is saved or dropped.
+    if (!setupDirty && (document.visibilityState === "hidden" || !isTextField(document.activeElement))) {
       reload();
       return;
     }
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") reload();
+      if (document.visibilityState === "hidden" && !setupDirty) reload();
     });
   });
 }
@@ -223,17 +230,51 @@ function isStandalone() {
   );
 }
 
-/** The guide (uputstvo.html), from the top bar. It is a page of its own, so that it can also be sent
- * as a link and opens without the app. */
-function GuideLink({ onClick }) {
+/** The guide (uputstvo.html), from the top bar, with its name next to the icon: a bare "?" is easy to
+ * miss or misread for people who don't use phones much. It is a page of its own, so that it can also be
+ * sent as a link and opens without the app. */
+function GuideButton({ onClick }) {
   return html`
-    <a class="btn-icon" href="uputstvo.html" aria-label="Uputstvo" onClick=${onClick}>
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <a class="btn-guide" href="uputstvo.html" onClick=${onClick}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path
           d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"
         />
       </svg>
+      Uputstvo
     </a>
+  `;
+}
+
+const VIDEO_CARD_KEY = "sms_izbori.videoCard";
+
+/** Until it is closed, the main screen offers the guide's video of one send, above the first report. */
+function VideoCard() {
+  const [closed, setClosed] = useState(() => rawStorage.getItem(VIDEO_CARD_KEY) === "closed");
+  if (closed) return null;
+
+  function close() {
+    rawStorage.setItem(VIDEO_CARD_KEY, "closed");
+    setClosed(true);
+  }
+
+  return html`
+    <section class="flow-card video-card">
+      <a class="video-card-link" href="uputstvo.html#video">
+        <span class="video-card-play" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+        </span>
+        <span class="video-card-text">
+          <strong>Pogledaj video: kako se šalje</strong>
+          <span>30 sekundi, bez zvuka</span>
+        </span>
+      </a>
+      <button type="button" class="btn-icon" aria-label="Sakrij video" onClick=${close}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+        </svg>
+      </button>
+    </section>
   `;
 }
 
@@ -450,7 +491,7 @@ function SetupScreen({ app, profile, storageFailed }) {
       </div>
       <div class="top-bar-actions">
         ${profile == null
-          ? html`<${GuideLink} onClick=${() => keepSetupDraft({ bm, name, number, pickedName })} />`
+          ? html`<${GuideButton} onClick=${() => keepSetupDraft({ bm, name, number, pickedName })} />`
           : null}
       </div>
     </header>
@@ -693,11 +734,10 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
     <header class="top-bar">
       <img class="top-bar-icon" src="icons/icon-any.svg" alt="" width="28" height="28" aria-hidden="true" />
       <div class="top-bar-title">
-        <h1>BM ${profile.bm} · ${profile.name}</h1>
-        <div class="top-bar-subtitle">Šalje se: ${recipient}</div>
+        <h1>SMS Izbori</h1>
       </div>
       <div class="top-bar-actions">
-        <${GuideLink} />
+        <${GuideButton} />
         <button
           type="button"
           class="btn-icon"
@@ -714,6 +754,13 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
       </div>
     </header>
 
+    <!-- Who sends, and where to: out of the top bar, so it is never cut short; a wrong coordinator
+         number means the reports go nowhere. -->
+    <div class="profile-strip">
+      <div class="profile-strip-name">BM ${profile.bm} · ${profile.name}</div>
+      <div>Šalje se: ${recipient}</div>
+    </div>
+
     ${storageFailed
       ? html`<div class="storage-warning" role="alert">Ovaj pretraživač ne čuva podatke. Otvori stranicu u Chrome-u ili Safariju.</div>`
       : null}
@@ -721,6 +768,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
     <main class="content-scroll ${showSentBar ? "with-sent-bar" : ""}">
       <${InAppBrowserWarning} />
       <${InstallHintCard} />
+      <${VideoCard} />
 
       <${UpisaniCard} state=${state} profile=${profile} app=${app} onSend=${handleSend} />
       <${IzlaznostCard} state=${state} profile=${profile} app=${app} onSend=${handleSend} />
@@ -775,7 +823,7 @@ function WelcomeScreen({ onContinue }) {
         ? null
         : html`
             <p class="welcome-intro">Šalje javljanja koordinatoru kao SMS. Radi i bez interneta.</p>
-            <a class="guide-link" href="uputstvo.html">Kako se koristi? Kratko uputstvo</a>
+            <a class="guide-link" href="uputstvo.html">Kako se koristi? Video i uputstvo</a>
           `}
       ${IN_APP_BROWSER
         ? html`<${InAppBrowserWarning} welcome onStuck=${onStuck} />`
@@ -1559,13 +1607,23 @@ function IssueBlock({ issue, onConfirm }) {
 /** What Messages shows: the text still in the box where one types, and the send arrow at its right,
  * circled. Drawn with the start of the person's own message, so that it looks like what they saw. */
 function ComposeDrawing({ profile }) {
+  // Android's messaging apps (Google's, Samsung's, Huawei's) send with an arrow pointing right in a
+  // circle; the iPhone's with an arrow pointing up in a green one.
+  const ios = isIos(navigator);
   return html`
     <svg class="compose-drawing" viewBox="0 0 320 96" role="img" aria-label="Tekst u polju za pisanje, strelica za slanje desno od njega">
       <rect class="compose-box" x="2" y="26" width="236" height="44" rx="22" />
       <text class="compose-text" x="20" y="53">BM_${profile.bm}; …</text>
       <circle class="compose-ring" cx="276" cy="48" r="38" />
-      <circle class="compose-send" cx="276" cy="48" r="26" />
-      <path class="compose-arrow" transform="translate(264 36)" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+      ${ios
+        ? html`
+            <circle class="compose-send compose-send-ios" cx="276" cy="48" r="26" />
+            <path class="compose-arrow compose-arrow-ios" d="M276 32 L289 46 H280.5 V64 H271.5 V46 H263 Z" />
+          `
+        : html`
+            <circle class="compose-send" cx="276" cy="48" r="26" />
+            <path class="compose-arrow" transform="translate(264 36)" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          `}
     </svg>
   `;
 }
@@ -1607,7 +1665,10 @@ function SentBar({ undo, profile, onConfirm, onCancel }) {
       <aside class="sent-bar" role="dialog" aria-modal="true" aria-labelledby="sent-bar-title">
         <h2 id="sent-bar-title" class="sent-bar-title">Da li je u Porukama dodirnuta strelica?</h2>
         <div class="sent-bar-text" aria-live="polite">${reportLabel(undo)}</div>
-        <${ComposeDrawing} profile=${profile} />
+        <figure class="compose-figure">
+          <${ComposeDrawing} profile=${profile} />
+          <figcaption>Poruka ode tek na dodir ove strelice. Ova aplikacija samo pripremi tekst.</figcaption>
+        </figure>
         <div class="sent-bar-actions">
           <a class="btn-primary" href=${smsUri(profile.coordinatorNumber, reportText(undo, profile), isIos(navigator))}>
             Nije — otvori Poruke ponovo

@@ -48,6 +48,9 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  // The guide's videos go to the network as if there were no worker: Safari on iPhone plays a video only
+  // from answers to its range requests, which a cached copy doesn't give.
+  if (new URL(event.request.url).pathname.includes("/video/")) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     // Navigations may carry tracking parameters from the app that shared the link. A page of its own (the
