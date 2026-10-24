@@ -1132,9 +1132,9 @@ function UpisaniCard({ state, profile, app, onSend }) {
         ? html`
             <div class="sent-block">
               <${SentLine}
-                text=${`Poslato u ${formatTime(sent.at)}: ${sent.value.upisani} upisanih${
-                  sent.value.vanBm != null ? `, ${sent.value.vanBm} van BM` : ""
-                }`}
+                at=${sent.at}
+                detail=${`${sent.value.upisani} upisanih${sent.value.vanBm != null ? `, ${sent.value.vanBm} van BM` : ""}`}
+                awaiting=${awaitingConfirmation(state, "upisani")}
               />
               <button
                 type="button"
@@ -1221,16 +1221,22 @@ function IzlaznostCard({ state, profile, app, onSend }) {
               onClick=${() => app.selectSlot(s)}
             >
               <span class="slot-chip-label">${slotLabel(s)}h</span>
-              ${sentCount != null
-                ? html`
-                    <span
-                      class="slot-chip-sent"
-                      aria-label=${`poslato, ${sentCount}`}
-                    >
-                      ✓ ${sentCount}
-                    </span>
-                  `
-                : null}
+              ${sentCount == null
+                ? null
+                : awaitingConfirmation(state, "izlaznost", s)
+                  ? html`
+                      <span class="slot-chip-sent awaiting" aria-label=${`nije potvrđeno, ${sentCount}`}>
+                        ⏳ ${sentCount}
+                      </span>
+                    `
+                  : html`
+                      <span
+                        class="slot-chip-sent"
+                        aria-label=${`poslato, ${sentCount}`}
+                      >
+                        ✓ ${sentCount}
+                      </span>
+                    `}
             </button>
           `;
         })}
@@ -1302,7 +1308,9 @@ function VanBmCard({ state, profile, app, onSend }) {
       ${log.vanBm
         ? html`
             <${SentLine}
-              text=${`Poslato u ${formatTime(log.vanBm.at)}: ${log.vanBm.value.count} prijavljenih`}
+              at=${log.vanBm.at}
+              detail=${`${log.vanBm.value.count} prijavljenih`}
+              awaiting=${awaitingConfirmation(state, "vanBm")}
             />
           `
         : null}
@@ -1318,10 +1326,12 @@ function VanBmCard({ state, profile, app, onSend }) {
           ? "Komisija je formirana"
           : "Pošalji ponovo da je komisija formirana"}
       </button>
+      <${SendHint} />
       ${log.komisija
         ? html`
             <${SentLine}
               text=${`Javljeno u ${formatTime(log.komisija.at)}`}
+              awaiting=${awaitingConfirmation(state, "komisija")}
             />
           `
         : null}
@@ -1375,7 +1385,9 @@ function RezultatiCard({ state, profile, app, onSend }) {
       ${sent
         ? html`
             <${SentLine}
-              text=${`Poslato u ${formatTime(sent.at)}: MI ${sent.value.mi}, ONI ${sent.value.oni}`}
+              at=${sent.at}
+              detail=${`MI ${sent.value.mi}, ONI ${sent.value.oni}`}
+              awaiting=${awaitingConfirmation(state, "rezultati")}
             />
           `
         : null}
@@ -1518,6 +1530,7 @@ function SendArea({ label, issue, onSend, onConfirm }) {
       <button type="button" class="btn-primary" onClick=${onSend}>
         ${label}
       </button>
+      <${SendHint} />
       <${IssueBlock} issue=${issue} onConfirm=${onConfirm} />
     </div>
   `;
@@ -1602,32 +1615,52 @@ function MessagePreview({ text }) {
   `;
 }
 
-/** Green check indicator and text for sent reports. */
-function SentLine({ text }) {
+/** Under every send button: the page only fills in the message, and sending it is done in Messages. */
+function SendHint() {
+  return html`<p class="send-hint">Otvara aplikaciju Poruke — tamo dodirni dugme za slanje.</p>`;
+}
+
+/** Whether this is the report just sent, whose sending hasn't been confirmed yet (see SentBar). */
+function awaitingConfirmation(state, type, slot = null) {
+  return state.undo?.type === type && (slot == null || state.undo.slot === slot);
+}
+
+/** Green check and text for a sent report: "Poslato u {at}: {detail}", or the given text. Until the
+ * sending is confirmed, an amber line that asks for that instead, since a green check before then was
+ * read as "the app sent it" (2026-10-24). */
+function SentLine({ text, at, detail, awaiting = false }) {
+  if (awaiting) {
+    return html`
+      <div class="sent-line awaiting">
+        <span class="sent-check" aria-hidden="true">⏳</span>
+        <span class="sent-text">Potvrdi dole da je poruka poslata${detail ? ` (${detail})` : ""}</span>
+      </div>
+    `;
+  }
   return html`
     <div class="sent-line">
       <span class="sent-check" aria-label="poslato">✓</span>
-      <span class="sent-text">${text}</span>
+      <span class="sent-text">${text ?? `Poslato u ${formatTime(at)}: ${detail}`}</span>
     </div>
   `;
 }
 
-/** Bottom confirmation bar displayed after a report is sent. */
+/** After a send, whether the SMS went. The page opens Messages with the text filled in and can't see
+ * whether it was sent there, so the report shows as sent only once this is answered. It covers the
+ * page, so that it isn't missed: the bar it was before was overlooked while looking at the card. */
 function SentBar({ undo, onUndo, onDismiss }) {
   return html`
-    <aside class="sent-bar" role="region" aria-label="Poslata poruka">
-      <div class="sent-bar-text" aria-live="polite">
-        Označeno kao poslato: ${reportLabel(undo)}
-      </div>
-      <div class="sent-bar-actions">
-        <button type="button" class="btn-text btn-sent-bar" onClick=${onUndo}>
-          Nije poslato
-        </button>
-        <button type="button" class="btn-text btn-sent-bar" onClick=${onDismiss}>
-          U redu
-        </button>
-      </div>
-    </aside>
+    <div class="sent-backdrop">
+      <aside class="sent-bar" role="dialog" aria-modal="true" aria-labelledby="sent-bar-title">
+        <h2 id="sent-bar-title" class="sent-bar-title">Da li je SMS poruka poslata?</h2>
+        <div class="sent-bar-text" aria-live="polite">${reportLabel(undo)}</div>
+        <p class="sent-bar-hint">Poruka odlazi tek kad u aplikaciji Poruke dodirneš dugme za slanje (strelicu).</p>
+        <div class="sent-bar-actions">
+          <button type="button" class="btn-primary" onClick=${onDismiss}>Da, poslata je</button>
+          <button type="button" class="btn-secondary" onClick=${onUndo}>Nije — vrati da pošaljem</button>
+        </div>
+      </aside>
+    </div>
   `;
 }
 

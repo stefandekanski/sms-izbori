@@ -16,6 +16,8 @@
   --error: #B3261E;
   --on-error: #FFFFFF;
   --sent: #1B7F3B;
+  --awaiting: #B45309;
+  --awaiting-container: #FEF3C7;
   --safari-blue: #007AFF;
   --viber-purple: #7360F2;
 }
@@ -37,6 +39,8 @@
     --error: #FFB4AB;
     --on-error: #690005;
     --sent: #7DD99A;
+    --awaiting: #FCD34D;
+    --awaiting-container: #422006;
     --safari-blue: #0A84FF;
   }
 }
@@ -419,6 +423,7 @@ body {
 
 .card-header {
   display: flex;
+  flex-wrap: wrap; /* the "Sada" badge goes under the title with a large font on a narrow screen */
   align-items: center;
   gap: 0.75rem; /* 12px */
 }
@@ -689,6 +694,10 @@ body {
   color: var(--on-primary);
 }
 
+.slot-chip-sent.awaiting {
+  color: var(--awaiting);
+}
+
 /* Message preview */
 .message-preview {
   display: flex;
@@ -743,10 +752,31 @@ body {
 
 .sent-block {
   display: flex;
+  flex-wrap: wrap; /* "Izmeni" goes under the line with a large font on a narrow screen */
   align-items: center;
   justify-content: space-between;
   width: 100%;
   gap: 0.5rem;
+}
+
+/* Sent, but not confirmed yet: one step left, for the person to do */
+.sent-line.awaiting {
+  color: var(--awaiting);
+  background-color: var(--awaiting-container);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-weight: 500;
+}
+
+.sent-line.awaiting .sent-check {
+  color: inherit;
+}
+
+.send-hint {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.375rem;
+  color: var(--on-surface-variant);
 }
 
 /* Divider & Subtitle */
@@ -799,39 +829,57 @@ body {
   }
 }
 
-/* Sent bar (fixed bottom) */
-.sent-bar {
+/* Sent bar: a sheet at the bottom over the dimmed page, asking whether the SMS went */
+.sent-backdrop {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: var(--primary-container);
-  color: var(--on-primary-container);
-  box-shadow: 0 -0.25rem 1rem rgba(0, 0, 0, 0.15);
-  padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  justify-content: flex-end;
   z-index: 50;
+}
+
+.sent-bar {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 40rem;
+  max-height: 100%;
+  overflow-y: auto;
+  margin: 0 auto;
+  background-color: var(--surface);
+  color: var(--on-surface);
+  border-radius: 1.75rem 1.75rem 0 0;
+  box-shadow: 0 -0.25rem 1rem rgba(0, 0, 0, 0.15);
+  padding: 1.25rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sent-bar-title {
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.75rem;
 }
 
 .sent-bar-text {
   font-size: 1.125rem;
   line-height: 1.5rem;
+  font-weight: 600;
+}
+
+.sent-bar-hint {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: var(--on-surface-variant);
 }
 
 .sent-bar-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 0.5rem;
-}
-
-.btn-sent-bar {
-  color: var(--on-primary-container) !important;
-}
-
-.btn-sent-bar:hover, .btn-sent-bar:focus-visible {
-  background-color: rgba(0, 0, 0, 0.08);
 }
 
 /* Dialogs */
