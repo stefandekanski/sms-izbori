@@ -145,6 +145,9 @@ let installPrompt = null;
 // "none", "installing" or "installed".
 let installStage = "none";
 let alreadyInstalled = false;
+// After an accepted install, whether the phone has said the app is on it: null while that may still
+// come, true once it did, false when it didn't in time (then going on in the browser is offered).
+let installConfirmed = null;
 const installListeners = new Set();
 function changeInstall(change) {
   change();
@@ -155,6 +158,10 @@ function changeInstall(change) {
 // its icon is on the phone, which takes 5 to 12 seconds; until then the page says it is installing,
 // so nobody goes looking for an icon that isn't there yet.
 const INSTALL_SECONDS = 10;
+// How long after an accepted install the phone has to say the app is on it. Chrome says so only for the
+// real app it builds through Google Play; a phone without Google Play gets a plain icon that nothing
+// reports, and is offered the browser too, under the card that shows the icon to look for.
+const CONFIRM_SECONDS = 30;
 function startInstalling() {
   if (installStage !== "none") return;
   changeInstall(() => {
@@ -164,7 +171,36 @@ function startInstalling() {
   setTimeout(() => changeInstall(() => {
     installStage = "installed";
   }), INSTALL_SECONDS * 1000);
+  const started = performance.now();
+  const check = () =>
+    isAppInstalled().then((installed) => {
+      if (installed) {
+        changeInstall(() => {
+          installConfirmed = true;
+        });
+      } else if (performance.now() - started >= CONFIRM_SECONDS * 1000) {
+        changeInstall(() => {
+          installConfirmed = false;
+        });
+      } else {
+        setTimeout(check, 2000);
+      }
+    });
+  check();
 }
+
+// Chrome on Android tells an installed web app's own pages that it is installed (the manifest names it
+// under related_applications).
+function isAppInstalled() {
+  return (navigator.getInstalledRelatedApps?.() ?? Promise.resolve([])).then((apps) => apps.length > 0, () => false);
+}
+
+// A browser on Android that never offers installing: Firefox, or the own browser of a phone without
+// Google. On iPhone, Safari always can, through the steps.
+const CANNOT_INSTALL =
+  typeof window !== "undefined" &&
+  !isIos(navigator) &&
+  (!("onbeforeinstallprompt" in window) || /HuaweiBrowser/.test(navigator.userAgent || ""));
 
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -174,16 +210,13 @@ if (typeof window !== "undefined") {
     });
   });
   window.addEventListener("appinstalled", startInstalling);
-  // Chrome on Android tells an installed web app's own pages that it is installed (the manifest
-  // names it under related_applications); then there is nothing to install.
+  // When the app is on the phone already, there is nothing to install.
   if (!isStandalone()) {
-    navigator.getInstalledRelatedApps?.()
-      .then((apps) => {
-        if (apps.length > 0) changeInstall(() => {
-          alreadyInstalled = true;
-        });
-      })
-      .catch(() => {});
+    isAppInstalled().then((installed) => {
+      if (installed) changeInstall(() => {
+        alreadyInstalled = true;
+      });
+    });
   }
 }
 
@@ -194,7 +227,7 @@ function useInstall() {
     installListeners.add(listener);
     return () => installListeners.delete(listener);
   }, []);
-  return { prompt: installPrompt, stage: installStage, alreadyInstalled };
+  return { prompt: installPrompt, stage: installStage, alreadyInstalled, confirmed: installConfirmed };
 }
 
 async function promptInstall() {
@@ -332,12 +365,17 @@ function App() {
   const profile = state.profile;
   const isEditingSetup = state.showSetup || profile == null;
 
-  // In a browser the app is only installed. Whoever already set it up in the browser, or went on
-  // without installing while that was offered (until 2026-10-24 evening), uses it there.
+  // In a browser the app is installed first. Whoever already set it up in the browser, or went on
+  // without installing once that failed (see WelcomeScreen), uses it there.
   if (profile == null && !isStandalone() && !inBrowser) {
     return html`
       <div class="screen-container">
-        <${WelcomeScreen} />
+        <${WelcomeScreen}
+          onContinue=${() => {
+            rawStorage.setItem("sms_izbori.welcome", "browser");
+            setInBrowser(true);
+          }}
+        />
       </div>
     `;
   }
@@ -800,7 +838,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 /** First screen in a browser: the app, and installing it, so that it is then used like any other
  * app. An app's own browser can't install, so there it only leads on to Chrome or Safari. Colors
  * mean here what they mean in the rest of the app: blue is what to do, green is done, red a problem. */
-function WelcomeScreen() {
+function WelcomeScreen({ onContinue }) {
   const install = useInstall();
   const done = install.stage !== "none" || install.alreadyInstalled;
   // Chrome sends its offer soon after the page loads; until then the menu steps would only flash.
@@ -809,11 +847,20 @@ function WelcomeScreen() {
     const timer = setTimeout(() => setWaited(true), 2000);
     return () => clearTimeout(timer);
   }, []);
-  // The app is only used installed, the same on every phone: when the button doesn't install it, the
-  // menu steps are the way (Stefan, 2026-10-24 evening: going back in a browser closes the page, which
-  // confuses; "Ne uspevaš? Nastavi iz pretraživača" was offered after a failed install until then).
   // Chrome doesn't offer again after its offer was turned down, so the menu steps come at once.
   const onDeclined = () => setWaited(true);
+  // The app is used installed. Going on in the browser comes only once installing is known to have
+  // failed, in this order: this browser can't install at all, or after "Instaliraj" the phone didn't
+  // say within half a minute that the app is on it. Never in an app's own browser (a half-app in
+  // Viber, where going back closes the page), never on iPhone (Safari always installs). Stefan,
+  // 2026-10-24 evening; before, it came after a minute of anything that didn't work.
+  const goOn = IN_APP_BROWSER
+    ? null
+    : install.confirmed === false
+      ? "Nema ikonice? Nastavi u pretraživaču"
+      : CANNOT_INSTALL && waited && !done
+        ? "Ne može da se instalira? Nastavi u pretraživaču"
+        : null;
   return html`
     <header class="welcome-hero">
       <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
@@ -830,6 +877,11 @@ function WelcomeScreen() {
       ${IN_APP_BROWSER
         ? html`<${InAppBrowserWarning} welcome />`
         : html`<${InstallSteps} waited=${waited} onDeclined=${onDeclined} />`}
+      ${goOn
+        ? html`
+            <button type="button" class="btn-text btn-full-width" onClick=${onContinue}>${goOn}</button>
+          `
+        : null}
     </main>
   `;
 }
