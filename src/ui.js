@@ -332,17 +332,12 @@ function App() {
   const profile = state.profile;
   const isEditingSetup = state.showSetup || profile == null;
 
-  // In a browser the app is installed first. Whoever already set it up in the browser, or went on
-  // without installing (see WelcomeScreen), uses it there.
+  // In a browser the app is only installed. Whoever already set it up in the browser, or went on
+  // without installing while that was offered (until 2026-10-24 evening), uses it there.
   if (profile == null && !isStandalone() && !inBrowser) {
     return html`
       <div class="screen-container">
-        <${WelcomeScreen}
-          onContinue=${() => {
-            rawStorage.setItem("sms_izbori.welcome", "browser");
-            setInBrowser(true);
-          }}
-        />
+        <${WelcomeScreen} />
       </div>
     `;
   }
@@ -805,7 +800,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 /** First screen in a browser: the app, and installing it, so that it is then used like any other
  * app. An app's own browser can't install, so there it only leads on to Chrome or Safari. Colors
  * mean here what they mean in the rest of the app: blue is what to do, green is done, red a problem. */
-function WelcomeScreen({ onContinue }) {
+function WelcomeScreen() {
   const install = useInstall();
   const done = install.stage !== "none" || install.alreadyInstalled;
   // Chrome sends its offer soon after the page loads; until then the menu steps would only flash.
@@ -814,19 +809,11 @@ function WelcomeScreen({ onContinue }) {
     const timer = setTimeout(() => setWaited(true), 2000);
     return () => clearTimeout(timer);
   }, []);
-  // Going on without installing is offered only once the ways to install have failed: the app's
-  // browser didn't hand the page on, Chrome's offer was turned down, or the steps have been on
-  // screen for a while and nothing got installed. Sending works in any browser. The same everywhere:
-  // one app for everybody, installed (Android once offered it from the start; taken back 2026-10-24).
-  const [stuck, setStuck] = useState(false);
+  // The app is only used installed, the same on every phone: when the button doesn't install it, the
+  // menu steps are the way (Stefan, 2026-10-24 evening: going back in a browser closes the page, which
+  // confuses; "Ne uspevaš? Nastavi iz pretraživača" was offered after a failed install until then).
   // Chrome doesn't offer again after its offer was turned down, so the menu steps come at once.
-  const onStuck = () => {
-    setStuck(true);
-    setWaited(true);
-  };
-  // After "Instaliraj", nothing confirms that an icon appeared; whoever is still here a minute later
-  // didn't get one, so going on is offered then too.
-  const goOn = stuck && install.stage !== "installing" ? "Ne uspevaš? Nastavi iz pretraživača" : null;
+  const onDeclined = () => setWaited(true);
   return html`
     <header class="welcome-hero">
       <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
@@ -841,32 +828,15 @@ function WelcomeScreen({ onContinue }) {
             <a class="guide-link" href="uputstvo.html">Kako se koristi? Video i uputstvo</a>
           `}
       ${IN_APP_BROWSER
-        ? html`<${InAppBrowserWarning} welcome onStuck=${onStuck} />`
-        : html`<${InstallSteps} waited=${waited} onStuck=${onStuck} />`}
-      ${goOn
-        ? html`
-            <button type="button" class="btn-text btn-full-width" onClick=${onContinue}>${goOn}</button>
-          `
-        : null}
+        ? html`<${InAppBrowserWarning} welcome />`
+        : html`<${InstallSteps} waited=${waited} onDeclined=${onDeclined} />`}
     </main>
   `;
 }
 
-// How long the install steps stay on screen, with nothing installed, before going on without is offered.
-const STUCK_SECONDS = 60;
-
 /** Installing, the way the browser this page runs in allows it. */
-function InstallSteps({ waited, onStuck }) {
+function InstallSteps({ waited, onDeclined }) {
   const install = useInstall();
-  const showingSteps =
-    install.stage === "none" && !install.alreadyInstalled && (isIos(navigator) || (!install.prompt && waited));
-  const installed = install.stage === "installed" || install.alreadyInstalled;
-  useEffect(() => {
-    if (!showingSteps && !installed) return;
-    const timer = setTimeout(onStuck, STUCK_SECONDS * 1000);
-    return () => clearTimeout(timer);
-  }, [showingSteps, installed]);
-
   if (install.alreadyInstalled) return html`<${InstalledCard} stage="installed" already />`;
   if (install.stage !== "none") return html`<${InstalledCard} stage=${install.stage} />`;
 
@@ -903,7 +873,7 @@ function InstallSteps({ waited, onStuck }) {
           type="button"
           class="btn-primary"
           onClick=${async () => {
-            if ((await promptInstall()) === "dismissed") onStuck();
+            if ((await promptInstall()) === "dismissed") onDeclined();
           }}
         >
           Instaliraj aplikaciju
@@ -1021,14 +991,7 @@ function WarningIcon() {
  * whether the app lets that through is up to the app, so the steps through its menu follow. On
  * Setup and the main screen, for whoever set the app up in there, it warns that the data stays
  * apart from Chrome and Safari. */
-function InAppBrowserWarning({ welcome = false, onStuck = () => {} }) {
-  // When neither the button nor the menu gets out of the app's browser, going on in it is offered after
-  // a while, as with the install steps.
-  useEffect(() => {
-    if (!IN_APP_BROWSER || !welcome) return;
-    const timer = setTimeout(onStuck, STUCK_SECONDS * 1000);
-    return () => clearTimeout(timer);
-  }, []);
+function InAppBrowserWarning({ welcome = false }) {
   if (!IN_APP_BROWSER) return null;
   const ios = isIos(navigator);
 
@@ -1067,11 +1030,10 @@ function InAppBrowserWarning({ welcome = false, onStuck = () => {} }) {
     later(1500, () => {
       location.href = intentUrl(null);
     });
-    later(4500, onStuck);
   }
 
   const button = ios
-    ? html`<a class="btn-primary in-app-open" href=${inSafari} onClick=${() => whileStillHere()(4500, onStuck)}>Otvori u Safariju</a>`
+    ? html`<a class="btn-primary in-app-open" href=${inSafari}>Otvori u Safariju</a>`
     : html`<a class="btn-primary in-app-open" href=${inChrome} onClick=${openElsewhere}>Otvori u Chrome-u</a>`;
 
   if (!welcome) {
