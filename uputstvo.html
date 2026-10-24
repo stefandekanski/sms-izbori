@@ -20,8 +20,8 @@
   <!-- A short guide for people who aren't at home with phones: first a video of one send (the real app
        on a phone, with red boxes, arrows and short captions, no sound), then the same in words. Text first
        written by Gemini 3.8 Flash from the app's facts, checked against the app, then reviewed by Gemini 4
-       Argon; it names buttons exactly as the app does. The video comes from the network, not the worker's
-       cache (see sw.js), so it needs internet; the page itself opens offline. -->
+       Argon; it names buttons exactly as the app does. The worker stores the videos in the background (see
+       sw.js), so after the app has been opened once with internet they play offline too, like the page. -->
   <div class="screen-container">
     <header class="top-bar">
       <div class="top-bar-nav">
@@ -182,7 +182,8 @@
         box.classList.toggle("playing", playing);
         toggle.setAttribute("aria-label", playing ? "Zaustavi video" : "Pusti video");
       };
-      // The video comes from the network; after a failed load (no signal) the next tap loads it anew.
+      // Until the worker has stored it the video comes from the network; after a failed load (no signal)
+      // the next tap loads it anew.
       const play = () => {
         if (video.error) video.load();
         video.play().catch(showState);

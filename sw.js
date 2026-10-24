@@ -49,11 +49,55 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// The guide's videos are stored after the version takes over, not before: they are large, and a slow
+// download shouldn't hold back the app's own files. Each time a page opens, any that are missing are
+// fetched in the background; until then they come from the network.
+const VIDEOS = ["./video/slanje.mp4", "./video/instalacija.mp4"];
+let storingVideos = null;
+function storeVideos() {
+  storingVideos ??= caches.open(CACHE_NAME).then((cache) =>
+    Promise.all(VIDEOS.map(async (url) => {
+      if (await cache.match(url)) return;
+      const response = await fetch(`${url}?v=${VERSION}`, { cache: "reload" });
+      if (response.ok) await cache.put(url, response);
+    }))
+  ).catch(() => {}).finally(() => (storingVideos = null));
+  return storingVideos;
+}
+
+// Safari on iPhone plays a video only from answers to its range requests, so a stored video is
+// answered in the parts asked for.
+async function videoPart(stored, request) {
+  const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("Range") ?? "");
+  if (!range || (range[1] === "" && range[2] === "")) return stored;
+  const body = await stored.arrayBuffer();
+  const size = body.byteLength;
+  const start = range[1] === "" ? Math.max(size - Number(range[2]), 0) : Number(range[1]);
+  const end = range[1] === "" || range[2] === "" ? size - 1 : Math.min(Number(range[2]), size - 1);
+  if (start > end) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  return new Response(body.slice(start, end + 1), {
+    status: 206,
+    headers: {
+      "Content-Type": "video/mp4",
+      "Content-Length": String(end - start + 1),
+      "Content-Range": `bytes ${start}-${end}/${size}`,
+      "Accept-Ranges": "bytes",
+    },
+  });
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  // The guide's videos go to the network as if there were no worker: Safari on iPhone plays a video only
-  // from answers to its range requests, which a cached copy doesn't give. Their cover pictures are cached.
-  if (new URL(event.request.url).pathname.endsWith(".mp4")) return;
+  if (event.request.mode === "navigate") event.waitUntil(storeVideos());
+  if (new URL(event.request.url).pathname.endsWith(".mp4")) {
+    event.respondWith((async () => {
+      const stored = await (await caches.open(CACHE_NAME)).match(event.request, { ignoreSearch: true });
+      if (stored) return videoPart(stored, event.request);
+      event.waitUntil(storeVideos());
+      return fetch(event.request);
+    })());
+    return;
+  }
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     // Navigations may carry tracking parameters from the app that shared the link. A page of its own (the
