@@ -169,18 +169,26 @@ export function createApp({ store, now = () => new Date(), electionDay = ELECTIO
   // From election day on, the reports sent before it were tests (sending one the evening before was
   // advised), and the day's real ones must not look done already: they are dropped, and a question
   // still open about one of them with them. Before the day nothing changes, so a test shows as sent.
+  // What was typed before the day, or put back by "Odustani" after a test, is cleared once when the
+  // day begins, or a test count would wait in its field, holding its hour (20h the evening before).
   function withoutTests(s) {
     if (now().getTime() < electionDay) return s;
-    const log = sentSince(s.log, electionDay);
-    if (log === s.log) return s;
+    let next = s;
+    if (!store.loadDayStarted()) {
+      store.saveDayStarted();
+      store.saveDrafts(emptyDrafts());
+      next = { ...next, drafts: emptyDrafts(), issues: {}, editingUpisani: false };
+    }
+    const log = sentSince(next.log, electionDay);
+    if (log === next.log) return next;
     store.saveLog(log);
-    let undo = s.undo;
+    let undo = next.undo;
     if (undo != null && entryFor(log, undo) == null) {
       currentPendingUndo = null;
       store.saveUndo(null);
       undo = null;
     }
-    return { ...s, log, undo };
+    return { ...next, log, undo };
   }
 
   state = calculateWithClock(withoutTests(state), store, now);
@@ -295,7 +303,8 @@ export function createApp({ store, now = () => new Date(), electionDay = ELECTIO
     selectSlot(slot) {
       const minutes = getMinutes(now);
       const suggested = suggestedSlot(minutes, sentSlots(state.log));
-      if (slot === suggested) {
+      // Tapping the suggested hour is no choice, except with a count typed: that keeps its hour.
+      if (slot === suggested && !state.drafts.izlaznost) {
         edit("izlaznost", (d) => ({ ...d, izlaznostSlot: null, izlaznostSlotFor: null }));
       } else {
         edit("izlaznost", (d) => ({ ...d, izlaznostSlot: slot, izlaznostSlotFor: suggested }));
@@ -328,8 +337,18 @@ export function createApp({ store, now = () => new Date(), electionDay = ELECTIO
       }));
     },
 
+    // Every minute and on coming back. The installed app and a browser tab share what is saved, so
+    // what another copy sent or answered in the meantime is read again first.
     refresh() {
-      update((s) => s);
+      const savedUndo = store.loadUndo();
+      currentPendingUndo = savedUndo;
+      update((s) => ({
+        ...s,
+        profile: store.loadProfile() ?? s.profile,
+        log: store.loadLog(),
+        drafts: store.loadDrafts(),
+        undo: savedUndo?.report ?? null,
+      }));
     },
 
     send(action, confirmed = false) {
@@ -410,11 +429,13 @@ export function createApp({ store, now = () => new Date(), electionDay = ELECTIO
       store.saveUndo(null);
       store.saveLog(previous.log);
       store.saveDrafts(previous.drafts);
+      // A cancelled change to a sent Upisani stays open, so the number put back in its field is seen.
       update((s) => ({
         ...s,
         log: previous.log,
         drafts: previous.drafts,
         undo: null,
+        editingUpisani: s.editingUpisani || (previous.report.type === "upisani" && previous.log.upisani != null),
       }));
     },
 

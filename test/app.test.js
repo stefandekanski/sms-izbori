@@ -15,6 +15,8 @@ function createFakeStore(initial = {}) {
   let log = initial.log ?? emptyLog();
   let drafts = initial.drafts ?? emptyDrafts();
   let undo = initial.undo ?? null;
+  // Tests start on a day already begun unless they say otherwise (see withoutTests).
+  let dayStarted = initial.dayStarted ?? true;
 
   return {
     loadProfile: () => profile,
@@ -32,6 +34,10 @@ function createFakeStore(initial = {}) {
     loadUndo: () => undo,
     saveUndo: (u) => {
       undo = u;
+    },
+    loadDayStarted: () => dayStarted,
+    saveDayStarted: () => {
+      dayStarted = true;
     },
     get profile() {
       return profile;
@@ -291,6 +297,17 @@ test("AppViewModelTest.typedCount_keepsItsHour_afterACancelledSend", () => {
   app.refresh();
   assert.equal(app.getState().selectedSlot, 18);
   assert.equal(app.getState().drafts.izlaznost, "450");
+});
+
+test("AppViewModelTest.typedCount_keepsItsHour_whenItsChipIsTapped", () => {
+  const now = makeClock("18:43");
+  const store = createFakeStore({ profile: petar });
+  const app = createApp({ store, now });
+  app.setIzlaznost("456");
+  app.selectSlot(18);
+  now.set("18:46");
+  app.refresh();
+  assert.equal(app.send("izlaznost")?.text, "BM_22; Petar Petrović\nIzlaznost do 18: 456");
 });
 
 test("AppViewModelTest.clearedCount_followsTheClockAgain", () => {
@@ -744,6 +761,49 @@ test("electionDay_keepsTheOpenQuestionAboutASendOnTheDay", () => {
   const store = createFakeStore({ profile: petar, log, undo });
   const app = createApp({ store, now: makeClock("06:30") });
   assert.deepEqual(app.getState().undo, upisaniTest);
+});
+
+test("electionDay_clearsWhatWasTypedBeforeIt_once", () => {
+  const drafts = { ...emptyDrafts(), upisani: "500", izlaznost: "123", izlaznostSlot: 20, izlaznostSlotFor: 20 };
+  const store = createFakeStore({ profile: petar, drafts, dayStarted: false });
+  let at = new Date(2026, 9, 24, 21, 10);
+  const app = createApp({ store, now: () => at });
+  assert.equal(app.getState().drafts.izlaznost, "123");
+  at = new Date(2026, 9, 25, 7, 50);
+  app.refresh();
+  assert.deepEqual(app.getState().drafts, emptyDrafts());
+  assert.equal(app.getState().selectedSlot, 8);
+  app.setUpisani("612");
+  app.refresh();
+  assert.equal(createApp({ store, now: () => at }).getState().drafts.upisani, "612");
+});
+
+test("refresh_readsWhatAnotherCopySent", () => {
+  const store = createFakeStore({ profile: petar });
+  const now = makeClock("10:05");
+  const installed = createApp({ store, now });
+  const tab = createApp({ store, now });
+  tab.setIzlaznost("150");
+  tab.send("izlaznost");
+  installed.refresh();
+  assert.deepEqual(installed.getState().undo, { type: "izlaznost", slot: 10, count: 150 });
+  assert.deepEqual(sentIzlaznost(installed.getState().log), { 10: 150 });
+  installed.dismissUndo();
+  tab.refresh();
+  assert.equal(tab.getState().undo, null);
+});
+
+test("undo_ofAChangedUpisani_keepsTheChangeOpen", () => {
+  const log = record(emptyLog(), upisaniTest, EARLY);
+  const store = createFakeStore({ profile: petar, log });
+  const app = createApp({ store, now: makeClock("07:30") });
+  app.editUpisani();
+  app.setUpisani("1243");
+  app.send("upisani");
+  assert.equal(app.getState().editingUpisani, false);
+  app.undo();
+  assert.equal(app.getState().editingUpisani, true);
+  assert.equal(app.getState().drafts.upisani, "1243");
 });
 
 test("electionDay_anAppLeftOpenOvernightDropsTheTestAtThree", () => {

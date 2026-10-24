@@ -4,6 +4,7 @@ const PROFILE_KEY = "sms_izbori.profile";
 const LOG_KEY = "sms_izbori.log";
 const DRAFTS_KEY = "sms_izbori.drafts";
 const UNDO_KEY = "sms_izbori.undo";
+const DAY_STARTED_KEY = "sms_izbori.electionDayStarted";
 
 function safeGet(storage, key) {
   try {
@@ -133,6 +134,15 @@ export function createStore(storage = typeof localStorage !== "undefined" ? loca
       } else {
         safeSet(storage, UNDO_KEY, JSON.stringify(undo));
       }
+    },
+
+    /** Whether the app has run on election day already (see withoutTests in app.js). */
+    loadDayStarted() {
+      return safeGet(storage, DAY_STARTED_KEY) === "1";
+    },
+
+    saveDayStarted() {
+      safeSet(storage, DAY_STARTED_KEY, "1");
     },
   };
 }

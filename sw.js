@@ -29,8 +29,9 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE_NAME).then((cache) =>
       Promise.all(
         ASSETS.map(async (url) => {
-          // Past the HTTP cache, so a new version never precaches an old file.
-          const response = await fetch(url, { cache: "reload" });
+          // Past the HTTP cache and, with the version in the address, past GitHub's CDN too, which can
+          // serve an old copy of a file for a few minutes after a deploy; mixed files would break the app.
+          const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}v=${VERSION}`, { cache: "reload" });
           if (!response.ok) throw new Error(`${url}: ${response.status}`);
           await cache.put(url, response);
         }),
