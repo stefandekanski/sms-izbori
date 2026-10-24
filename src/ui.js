@@ -403,6 +403,9 @@ function SetupScreen({ app, profile, storageFailed }) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [noContactsApp, setNoContactsApp] = useState(false);
+  // A contact picked without a number (none saved, or "Phone numbers" turned off when sharing it) leaves
+  // the number as it was, with a note under the button, not the field marked wrong.
+  const [pickedNoNumber, setPickedNoNumber] = useState(false);
 
   const canClose = profile != null;
   const changed =
@@ -488,13 +491,12 @@ function SetupScreen({ app, profile, storageFailed }) {
         const tel = contact.tel && contact.tel.length > 0 ? contact.tel[0] : "";
         const contactName =
           contact.name && contact.name.length > 0 ? contact.name[0].trim() : null;
+        setPickedNoNumber(!tel);
         if (tel) {
           setNumber(tel);
           setPickedName(contactName || null);
           setNoContactsApp(false);
           setErrors((prev) => prev.filter((e) => e !== "number"));
-        } else {
-          setErrors((prev) => [...prev.filter((e) => e !== "number"), "number"]);
         }
       }
     } catch {
@@ -572,6 +574,7 @@ function SetupScreen({ app, profile, storageFailed }) {
           setNumber(v);
           setPickedName(null);
           setNoContactsApp(false);
+          setPickedNoNumber(false);
           setErrors((prev) => prev.filter((e) => e !== "number"));
         }}
         type="tel"
@@ -594,6 +597,10 @@ function SetupScreen({ app, profile, storageFailed }) {
 
       ${noContactsApp
         ? html`<div class="field-error-text">Imenik nije dostupan. Upiši broj ručno.</div>`
+        : null}
+
+      ${pickedNoNumber
+        ? html`<div class="field-error-text">Izabrani kontakt nema broj telefona. Izaberi drugi ili upiši broj.</div>`
         : null}
 
       <button
