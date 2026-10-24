@@ -365,10 +365,10 @@ function App() {
   const profile = state.profile;
   const isEditingSetup = state.showSetup || profile == null;
 
-  // In a browser the app is installed first. Whoever already set it up in the browser, or went on
-  // without installing once that failed (see WelcomeScreen), uses it there. Never in an app's own
-  // browser (Viber's), which can't install it: there it only leads on to Chrome, whatever was saved.
-  if (IN_APP_BROWSER || (profile == null && !isStandalone() && !inBrowser)) {
+  // In a browser the app is installed first, whatever was saved there; only who went on without
+  // installing once that failed (see WelcomeScreen) uses it there. Never in an app's own browser
+  // (Viber's), which can't install it: there it only leads on to Chrome.
+  if (IN_APP_BROWSER || (!isStandalone() && !inBrowser)) {
     return html`
       <div class="screen-container">
         <${WelcomeScreen}
