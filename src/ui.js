@@ -769,27 +769,17 @@ function WelcomeScreen({ onContinue }) {
     const timer = setTimeout(() => setWaited(true), 2000);
     return () => clearTimeout(timer);
   }, []);
-  // Android's browsers share their data with the app installed from them, so there going on in the
-  // browser is offered next to installing, as soon as the install card is up, and still once it's
-  // installed, in case the icon isn't found or Chrome didn't finish it. An iPhone's home screen app
-  // starts empty, and an app's browser keeps the data to itself, so there it is offered only once
-  // the ways to install have failed: the app's browser didn't hand the page on, or the steps have
-  // been on screen for a while and nothing got installed.
-  const sharesData = !IN_APP_BROWSER && !isIos(navigator);
+  // Going on without installing is offered only once the ways to install have failed: the app's
+  // browser didn't hand the page on, Chrome's offer was turned down, or the steps have been on
+  // screen for a while and nothing got installed. Sending works in any browser. The same everywhere:
+  // one app for everybody, installed (Android once offered it from the start; taken back 2026-10-24).
   const [stuck, setStuck] = useState(false);
   // Chrome doesn't offer again after its offer was turned down, so the menu steps come at once.
   const onStuck = () => {
     setStuck(true);
     setWaited(true);
   };
-  const goOn =
-    install.stage === "installing"
-      ? null
-      : done
-        ? sharesData ? "Nastavi u pretraživaču" : null
-        : sharesData && (install.prompt || waited)
-          ? "Nastavi bez instaliranja"
-          : stuck ? "Ne uspevaš? Nastavi iz pretraživača" : null;
+  const goOn = stuck && !done ? "Ne uspevaš? Nastavi iz pretraživača" : null;
   return html`
     <header class="welcome-hero">
       <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
