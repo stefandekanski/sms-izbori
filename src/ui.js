@@ -260,8 +260,8 @@ function App() {
   const profile = state.profile;
   const isEditingSetup = state.showSetup || profile == null;
 
-  // In a browser the app is installed first. Whoever already set it up in the browser, or couldn't
-  // install and went on without (see WelcomeScreen), uses it there.
+  // In a browser the app is installed first. Whoever already set it up in the browser, or went on
+  // without installing (see WelcomeScreen), uses it there.
   if (profile == null && !isStandalone() && !inBrowser) {
     return html`
       <div class="screen-container">
@@ -721,11 +721,33 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 function WelcomeScreen({ onContinue }) {
   const install = useInstall();
   const done = install.stage !== "none" || install.alreadyInstalled;
-  // Going on without installing is offered only once the ways to install have failed: the app's
-  // browser didn't hand the page on, Chrome's offer was turned down, or the steps have been on
-  // screen for a while and nothing got installed. Sending works in any browser.
+  // Chrome sends its offer soon after the page loads; until then the menu steps would only flash.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+  // Android's browsers share their data with the app installed from them, so there going on in the
+  // browser is offered next to installing, as soon as the install card is up, and still once it's
+  // installed, in case the icon isn't found or Chrome didn't finish it. An iPhone's home screen app
+  // starts empty, and an app's browser keeps the data to itself, so there it is offered only once
+  // the ways to install have failed: the app's browser didn't hand the page on, or the steps have
+  // been on screen for a while and nothing got installed.
+  const sharesData = !IN_APP_BROWSER && !isIos(navigator);
   const [stuck, setStuck] = useState(false);
-  const onStuck = () => setStuck(true);
+  // Chrome doesn't offer again after its offer was turned down, so the menu steps come at once.
+  const onStuck = () => {
+    setStuck(true);
+    setWaited(true);
+  };
+  const goOn =
+    install.stage === "installing"
+      ? null
+      : done
+        ? sharesData ? "Nastavi u pretraživaču" : null
+        : sharesData && (install.prompt || waited)
+          ? "Nastavi bez instaliranja"
+          : stuck ? "Ne uspevaš? Nastavi iz pretraživača" : null;
   return html`
     <header class="welcome-hero">
       <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
@@ -745,12 +767,10 @@ function WelcomeScreen({ onContinue }) {
           `}
       ${IN_APP_BROWSER
         ? html`<${InAppBrowserWarning} welcome onStuck=${onStuck} />`
-        : html`<${InstallSteps} onStuck=${onStuck} />`}
-      ${stuck && !done
+        : html`<${InstallSteps} waited=${waited} onStuck=${onStuck} />`}
+      ${goOn
         ? html`
-            <button type="button" class="btn-text btn-full-width" onClick=${onContinue}>
-              Ne uspevaš? Nastavi iz pretraživača
-            </button>
+            <button type="button" class="btn-text btn-full-width" onClick=${onContinue}>${goOn}</button>
           `
         : null}
     </main>
@@ -761,15 +781,8 @@ function WelcomeScreen({ onContinue }) {
 const STUCK_SECONDS = 60;
 
 /** Installing, the way the browser this page runs in allows it. */
-function InstallSteps({ onStuck }) {
+function InstallSteps({ waited, onStuck }) {
   const install = useInstall();
-  // Chrome sends its offer soon after the page loads; until then the menu steps would only flash.
-  const [waited, setWaited] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setWaited(true), 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
   const showingSteps =
     install.stage === "none" && !install.alreadyInstalled && (isIos(navigator) || (!install.prompt && waited));
   useEffect(() => {
