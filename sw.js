@@ -21,6 +21,7 @@ const ASSETS = [
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
   "./video/slanje.jpg",
+  "./video/instalacija.jpg",
 ];
 
 self.addEventListener("install", (event) => {

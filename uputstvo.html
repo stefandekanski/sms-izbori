@@ -127,6 +127,18 @@
 
       <section class="guide-section">
         <h2>Jednom, pre izbora</h2>
+        <p>Video za Android: 36 sekundi, bez zvuka.</p>
+        <div class="guide-video">
+          <video src="video/instalacija.mp4" poster="video/instalacija.jpg" width="720" height="1600"
+                 playsinline muted preload="none"
+                 aria-label="Video: „Instaliraj aplikaciju“ i „Install“, pa nova ikonica na početnom ekranu, upisani podaci i „Sačuvaj“"></video>
+          <button type="button" class="guide-video-toggle" aria-label="Pusti video">
+            <span class="guide-video-play" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="40" height="40"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
+            </span>
+          </button>
+          <div class="guide-video-progress" aria-hidden="true"><div></div></div>
+        </div>
         <ol class="steps">
           <li>
             <div>
@@ -140,7 +152,12 @@
               <strong>„Dodaj na početni ekran“</strong> i <strong>„Dodaj“</strong>.
             </div>
           </li>
-          <li><div>Na telefonu, među aplikacijama, nađi i otvori novu plavu ikonicu <strong>„SMS Izbori“</strong>.</div></li>
+          <li>
+            <div>
+              Na telefonu, među aplikacijama, nađi i otvori novu plavu ikonicu <strong>„SMS Izbori“</strong>. Ako je nema
+              na prvom ekranu, prevuci ekran ulevo.
+            </div>
+          </li>
           <li>
             <div>
               Upiši broj biračkog mesta, svoje ime i prezime i broj telefona koordinatora. Dodirni <strong>„Sačuvaj“</strong>.
@@ -153,27 +170,33 @@
     </main>
   </div>
   <script>
-    const video = document.getElementById("video");
-    const videoBox = video.parentElement;
-    const videoToggle = videoBox.querySelector(".guide-video-toggle");
-    const videoBar = videoBox.querySelector(".guide-video-progress > div");
-    const showVideoState = () => {
-      const playing = !video.paused && !video.ended && !video.error;
-      videoBox.classList.toggle("playing", playing);
-      videoToggle.setAttribute("aria-label", playing ? "Zaustavi video" : "Pusti video");
-    };
-    // The video comes from the network; after a failed load (no signal) the next tap loads it anew.
-    const playVideo = () => {
-      if (video.error) video.load();
-      video.play().catch(showVideoState);
-    };
-    for (const name of ["play", "pause", "ended", "error"]) video.addEventListener(name, showVideoState);
-    video.addEventListener("timeupdate", () => {
-      videoBar.style.width = (video.currentTime / video.duration) * 100 + "%";
-    });
-    videoToggle.addEventListener("click", () => (video.paused || video.ended ? playVideo() : video.pause()));
-    // From the main screen's video card: the video starts at once (muted, which every browser allows).
-    if (location.hash === "#video") playVideo();
+    // Each video has its own controls, and only one plays at a time.
+    const videos = [...document.querySelectorAll(".guide-video video")];
+    const players = new Map();
+    for (const video of videos) {
+      const box = video.parentElement;
+      const toggle = box.querySelector(".guide-video-toggle");
+      const bar = box.querySelector(".guide-video-progress > div");
+      const showState = () => {
+        const playing = !video.paused && !video.ended && !video.error;
+        box.classList.toggle("playing", playing);
+        toggle.setAttribute("aria-label", playing ? "Zaustavi video" : "Pusti video");
+      };
+      // The video comes from the network; after a failed load (no signal) the next tap loads it anew.
+      const play = () => {
+        if (video.error) video.load();
+        video.play().catch(showState);
+      };
+      players.set(video, play);
+      for (const name of ["play", "pause", "ended", "error"]) video.addEventListener(name, showState);
+      video.addEventListener("play", () => videos.forEach((other) => other !== video && other.pause()));
+      video.addEventListener("timeupdate", () => {
+        bar.style.width = (video.currentTime / video.duration) * 100 + "%";
+      });
+      toggle.addEventListener("click", () => (video.paused || video.ended ? play() : video.pause()));
+    }
+    // From the main screen's video card: the sending video starts at once (muted, which every browser allows).
+    if (location.hash === "#video") players.get(document.getElementById("video"))();
     // The coordinator's number from the app's saved data, as a button that calls it; without it the
     // text above says to call.
     try {

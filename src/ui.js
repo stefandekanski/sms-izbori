@@ -987,6 +987,11 @@ function InstalledCard({ stage, already = false }) {
         <${AppIcon} />
         <strong>SMS Izbori</strong>
       </div>
+      <p class="flow-hint">
+        ${isIos(navigator)
+          ? "Ne vidiš je? Prevuci ekran ulevo."
+          : "Ne vidiš je? Prevuci ekran ulevo ili je potraži među svim aplikacijama."}
+      </p>
       ${isIos(navigator)
         ? null
         : html`<p class="flow-hint">Ili u Chrome-u: ⋮ → „Otvori SMS Izbori“ (Open).</p>`}
