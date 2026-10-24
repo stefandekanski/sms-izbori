@@ -8,10 +8,6 @@ import {
 import {
   SLOTS,
   slotLabel,
-  parseCount,
-  normalizeBm,
-  normalizeName,
-  messages,
   reportLabel,
   reportText,
   latestVanBm,
@@ -431,14 +427,11 @@ function SetupScreen({ app, profile, storageFailed }) {
     }
   }
 
-  const validBm = normalizeBm(bm);
-  const validName = normalizeName(name);
-
   return html`
     <header class="top-bar">
-      <div class="top-bar-nav">
-        ${canClose
-          ? html`
+      ${canClose
+        ? html`
+            <div class="top-bar-nav">
               <button
                 type="button"
                 class="btn-icon"
@@ -449,9 +442,9 @@ function SetupScreen({ app, profile, storageFailed }) {
                   <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                 </svg>
               </button>
-            `
-          : null}
-      </div>
+            </div>
+          `
+        : html`<img class="top-bar-icon" src="icons/icon-any.svg" alt="" width="28" height="28" aria-hidden="true" />`}
       <div class="top-bar-title">
         <h1>Podešavanje</h1>
       </div>
@@ -468,7 +461,6 @@ function SetupScreen({ app, profile, storageFailed }) {
 
     <main class="content-scroll">
       <${InAppBrowserWarning} />
-      <div>Upiši ovo jednom. Posle svako javljanje ide jednim dodirom.</div>
 
       <${SetupField}
         id="field-bm"
@@ -527,15 +519,6 @@ function SetupScreen({ app, profile, storageFailed }) {
 
       ${noContactsApp
         ? html`<div class="field-error-text">Imenik nije dostupan. Upiši broj ručno.</div>`
-        : null}
-
-      ${validBm != null && validName != null
-        ? html`
-            <div class="header-preview">
-              <div>Poruke će počinjati ovako:</div>
-              <div class="header-preview-text">BM_${validBm}; ${validName}</div>
-            </div>
-          `
         : null}
 
       <button
@@ -708,6 +691,7 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
 
   return html`
     <header class="top-bar">
+      <img class="top-bar-icon" src="icons/icon-any.svg" alt="" width="28" height="28" aria-hidden="true" />
       <div class="top-bar-title">
         <h1>BM ${profile.bm} · ${profile.name}</h1>
         <div class="top-bar-subtitle">Šalje se: ${recipient}</div>
@@ -783,19 +767,14 @@ function WelcomeScreen({ onContinue }) {
   return html`
     <header class="welcome-hero">
       <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
-      <div>
-        <h1>SMS Izbori</h1>
-        <div class="welcome-subtitle">Za kontrolore na biračkom mestu</div>
-      </div>
+      <h1>SMS Izbori</h1>
     </header>
 
     <main class="content-scroll">
       ${IN_APP_BROWSER || done
         ? null
         : html`
-            <p class="welcome-intro">
-              Jednom upišeš podatke, a svako javljanje šalješ jednim dodirom kao SMS. Radi i bez interneta.
-            </p>
+            <p class="welcome-intro">Šalje javljanja koordinatoru kao SMS. Radi i bez interneta.</p>
             <a class="guide-link" href="uputstvo.html">Kako se koristi? Kratko uputstvo</a>
           `}
       ${IN_APP_BROWSER
@@ -846,7 +825,7 @@ function InstallSteps({ waited, onStuck }) {
             <div>U gornjem desnom uglu dodirni <${MenuItem} sr="Dodaj" en="Add" />.</div>
           </li>
           <li>
-            <div>Otvori novu aplikaciju <strong>„SMS Izbori“</strong> i tamo upiši podatke.</div>
+            <div>Izađi na početni ekran, dodirni novu plavu ikonicu <${AppIcon} small /> „SMS Izbori“ i tamo upiši podatke.</div>
           </li>
         </ol>
       </section>
@@ -856,8 +835,6 @@ function InstallSteps({ waited, onStuck }) {
   if (install.prompt) {
     return html`
       <section class="flow-card flow-card-action install-card">
-        <h2>Instaliraj aplikaciju</h2>
-        <p>Sačuvaj „SMS Izbori“ na telefonu pre početka rada.</p>
         <button
           type="button"
           class="btn-primary"
@@ -865,7 +842,7 @@ function InstallSteps({ waited, onStuck }) {
             if ((await promptInstall()) === "dismissed") onStuck();
           }}
         >
-          Instaliraj
+          Instaliraj aplikaciju
         </button>
       </section>
     `;
@@ -883,11 +860,8 @@ function InstallSteps({ waited, onStuck }) {
         </li>
         <li>
           <div>
-            Dodirni <${MenuItem} sr="Instaliraj aplikaciju" en="Install app" /> ili <${MenuItem} sr="Dodaj na početni ekran" en="Add to home screen" />.
+            Dodirni <${MenuItem} sr="Instaliraj aplikaciju" en="Install app" /> ili <${MenuItem} sr="Dodaj na početni ekran" en="Add to home screen" /> i potvrdi.
           </div>
-        </li>
-        <li>
-          <div>Potvrdi: dodirni <${MenuItem} sr="Instaliraj" en="Install" /> ili <${MenuItem} sr="Dodaj" en="Add" />.</div>
         </li>
       </ol>
     </section>
@@ -914,11 +888,22 @@ function InstalledCard({ stage, already = false }) {
         <${CheckIcon} />
         <h2>${already ? "Aplikacija je već na telefonu" : "Aplikacija je spremna"}</h2>
       </div>
-      <p>Na telefonu nađi plavu ikonicu „SMS Izbori“ i otvori je kao svaku drugu aplikaciju.</p>
+      <p><strong>Dalje radiš u aplikaciji:</strong></p>
+      <ol class="steps">
+        <li>
+          <div>Izađi na početni ekran telefona.</div>
+        </li>
+        <li>
+          <div>Nađi ovu plavu ikonicu i dodirni je:</div>
+        </li>
+      </ol>
       <div class="app-preview">
-        <img src="icons/icon-any.svg" alt="" width="40" height="40" />
+        <${AppIcon} />
         <strong>SMS Izbori</strong>
       </div>
+      ${isIos(navigator)
+        ? null
+        : html`<p class="flow-hint">Ili u Chrome-u: ⋮ → „Otvori SMS Izbori“ (Open).</p>`}
     </section>
   `;
 }
@@ -931,6 +916,12 @@ function MenuItem({ sr, en }) {
 /** A browser button drawn as a key: ⋮, ≡ or •••. */
 function Key({ children }) {
   return html`<span class="key-chip">${children}</span>`;
+}
+
+/** The app's icon, as the home screen shows it; small sits inline in a line of text. */
+function AppIcon({ small = false }) {
+  const size = small ? 28 : 56;
+  return html`<img class=${small ? "app-icon-small" : null} src="icons/icon-any.svg" alt="" width=${size} height=${size} />`;
 }
 
 /** Safari's Share button, in Safari's blue. */
@@ -1195,18 +1186,6 @@ function UpisaniCard({ state, profile, app, onSend }) {
                   tag="upisaniVanBm"
                   revealRef=${revealRef}
                 />
-                ${(() => {
-                  const upisani = parseCount(drafts.upisani);
-                  if (upisani != null && upisani >= 1) {
-                    const text = messages.upisani(
-                      profile,
-                      upisani,
-                      parseCount(drafts.upisaniVanBm)
-                    );
-                    return html`<${MessagePreview} text=${text} />`;
-                  }
-                  return null;
-                })()}
                 <${SendArea}
                   label="Pripremi SMS: broj upisanih"
                   issue=${state.issues["upisani"]}
@@ -1283,14 +1262,6 @@ function IzlaznostCard({ state, profile, app, onSend }) {
             tag="izlaznost"
             revealRef=${revealRef}
           />
-          ${(() => {
-            const count = parseCount(drafts.izlaznost);
-            if (count != null) {
-              const text = messages.izlaznost(profile, slot, count);
-              return html`<${MessagePreview} text=${text} />`;
-            }
-            return null;
-          })()}
           <${SendArea}
             label=${`Pripremi SMS: izlaznost do ${slotLabel(slot)}h`}
             issue=${state.issues["izlaznost"]}
@@ -1322,14 +1293,6 @@ function VanBmCard({ state, profile, app, onSend }) {
             supportingText=${latest != null ? `Poslednje javljeno: ${latest}` : null}
             revealRef=${revealRef}
           />
-          ${(() => {
-            const count = parseCount(drafts.vanBm);
-            if (count != null) {
-              const text = messages.vanBm(profile, count);
-              return html`<${MessagePreview} text=${text} />`;
-            }
-            return null;
-          })()}
           <${SendArea}
             label="Pripremi SMS: broj prijavljenih"
             issue=${state.issues["vanBm"]}
@@ -1349,7 +1312,6 @@ function VanBmCard({ state, profile, app, onSend }) {
         : null}
 
       <hr class="divider" />
-      <h3 class="subtitle">Komisija za glasanje van BM</h3>
       <button
         type="button"
         class="btn-secondary"
@@ -1397,15 +1359,6 @@ function RezultatiCard({ state, profile, app, onSend }) {
               revealRef=${revealRef}
             />
           </div>
-          ${(() => {
-            const mi = parseCount(drafts.mi);
-            const oni = parseCount(drafts.oni);
-            if (mi != null && oni != null) {
-              const text = messages.rezultati(profile, mi, oni);
-              return html`<${MessagePreview} text=${text} />`;
-            }
-            return null;
-          })()}
           <${SendArea}
             label="Pripremi SMS: rezultati"
             issue=${state.issues["rezultati"]}
@@ -1603,49 +1556,6 @@ function IssueBlock({ issue, onConfirm }) {
   return null;
 }
 
-/** Displays the exact message with a copy button. */
-function MessagePreview({ text }) {
-  const [copied, setCopied] = useState(false);
-  const textRef = useRef(null);
-
-  function selectPreviewText() {
-    if (!textRef.current) return;
-    const range = document.createRange();
-    range.selectNodeContents(textRef.current);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-
-  function handleCopy() {
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(
-        () => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        },
-        () => {
-          selectPreviewText();
-        }
-      );
-    } else {
-      selectPreviewText();
-    }
-  }
-
-  return html`
-    <div class="message-preview">
-      <div class="preview-label">Tekst koji ćeš poslati:</div>
-      <div class="preview-box">
-        <pre class="preview-text" ref=${textRef}>${text}</pre>
-      </div>
-      <button type="button" class="btn-text btn-copy" onClick=${handleCopy}>
-        ${copied ? "Kopirano" : "Kopiraj"}
-      </button>
-    </div>
-  `;
-}
-
 /** What Messages shows: the text still in the box where one types, and the send arrow at its right,
  * circled. Drawn with the start of the person's own message, so that it looks like what they saw. */
 function ComposeDrawing({ profile }) {
@@ -1698,7 +1608,6 @@ function SentBar({ undo, profile, onConfirm, onCancel }) {
         <h2 id="sent-bar-title" class="sent-bar-title">Da li je u Porukama dodirnuta strelica?</h2>
         <div class="sent-bar-text" aria-live="polite">${reportLabel(undo)}</div>
         <${ComposeDrawing} profile=${profile} />
-        <p class="sent-bar-hint">Bez dodira na strelicu poruka ne odlazi koordinatoru.</p>
         <div class="sent-bar-actions">
           <a class="btn-primary" href=${smsUri(profile.coordinatorNumber, reportText(undo, profile), isIos(navigator))}>
             Nije — otvori Poruke ponovo

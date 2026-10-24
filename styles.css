@@ -99,6 +99,15 @@ body {
   min-width: 3rem;
 }
 
+/* The app's icon left of the title: on the main screen, and in the first Setup, which has no back arrow. */
+.top-bar-icon {
+  flex-shrink: 0;
+  width: 1.75rem; /* 28px */
+  height: 1.75rem;
+  margin-right: 0.5rem; /* 8px */
+  border-radius: 0.375rem; /* 6px */
+}
+
 .top-bar-title {
   display: flex;
   flex-direction: column;
@@ -184,12 +193,6 @@ body {
   font-size: 1.375rem; /* 22px */
   line-height: 1.75rem;
   font-weight: 700;
-}
-
-.welcome-subtitle {
-  font-size: 1rem;
-  line-height: 1.375rem;
-  color: var(--on-surface-variant);
 }
 
 .welcome-intro {
@@ -304,9 +307,24 @@ body {
 }
 
 .app-preview img {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 0.625rem;
+  width: 3.5rem; /* 56px */
+  height: 3.5rem;
+  border-radius: 0.875rem; /* rounded like the icon on the phone */
+}
+
+/* A quieter line in a flow card, for a second way. */
+.flow-hint {
+  font-size: 1rem;
+  line-height: 1.375rem;
+  color: var(--on-surface-variant);
+}
+
+/* The app's icon inside a line of text. */
+.app-icon-small {
+  width: 1.75rem; /* 28px */
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  vertical-align: middle;
 }
 
 /* Numbered steps: one action each, the number in a circle. */
@@ -642,10 +660,6 @@ body {
   background-color: var(--surface-variant);
 }
 
-.btn-copy {
-  align-self: flex-end;
-}
-
 /* Slot chips */
 .slots-flow {
   display: flex;
@@ -696,37 +710,6 @@ body {
 
 .slot-chip-sent.awaiting {
   color: var(--awaiting);
-}
-
-/* Message preview */
-.message-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  width: 100%;
-}
-
-.preview-label {
-  font-size: 1rem; /* 16px */
-  font-weight: 500;
-  color: var(--on-surface-variant);
-}
-
-.preview-box {
-  background-color: var(--surface-variant);
-  color: var(--on-surface-variant);
-  border-radius: 0.5rem; /* 8px */
-  padding: 0.75rem; /* 12px */
-  width: 100%;
-}
-
-.preview-text {
-  margin: 0;
-  font-family: inherit;
-  font-size: 1.125rem; /* 18px */
-  line-height: 1.625rem;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 /* Sent line */
@@ -819,26 +802,6 @@ body {
   width: 100%;
 }
 
-.subtitle {
-  margin: 0;
-  font-size: 1.125rem; /* 18px */
-  font-weight: 600;
-  line-height: 1.625rem;
-}
-
-/* Setup live preview */
-.header-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.header-preview-text {
-  font-size: 1.125rem; /* 18px */
-  font-weight: 600;
-  line-height: 1.625rem;
-}
-
 .picked-coordinator {
   font-size: 1.125rem;
   line-height: 1.625rem;
@@ -899,13 +862,6 @@ body {
   font-size: 1.125rem;
   line-height: 1.5rem;
   font-weight: 600;
-}
-
-.sent-bar-hint {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  color: var(--on-surface-variant);
 }
 
 .sent-bar-actions {
