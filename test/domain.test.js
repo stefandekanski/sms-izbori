@@ -77,6 +77,8 @@ test("InputTest.normalizeName_rejectsBlank", () => {
 
 test("InputTest.normalizePhone_stripsSeparators", () => {
   assert.equal(normalizePhone("064 123 4567"), "0641234567");
+  assert.equal(normalizePhone("064/123-4567"), "0641234567");
+  assert.equal(normalizePhone("\u202A+381 64 123 4567\u202C"), "+381641234567");
   assert.equal(normalizePhone("(064) 123.45.67"), "0641234567");
   assert.equal(normalizePhone("064-123-4567"), "0641234567");
   assert.equal(normalizePhone("+381 64 123-4567"), "+381641234567");

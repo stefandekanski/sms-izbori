@@ -690,17 +690,20 @@ function ReportsScreen({ app, state, profile, storageFailed }) {
     scrollToCard(state.currentCard);
   }, []);
 
+  // Coming back, a "Sada" card that changed while the app was away (07:00, 20:30) is brought into view. The
+  // app refreshes on the same event, so the card is read once that render is done.
+  const currentCardRef = useRef(state.currentCard);
+  currentCardRef.current = state.currentCard;
   useEffect(() => {
     function handleVisibility() {
-      if (document.visibilityState === "visible") {
-        if (state.currentCard !== lastScrolledCardRef.current) {
-          scrollToCard(state.currentCard);
-        }
-      }
+      if (document.visibilityState !== "visible") return;
+      setTimeout(() => {
+        if (currentCardRef.current !== lastScrolledCardRef.current) scrollToCard(currentCardRef.current);
+      }, 0);
     }
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [state.currentCard]);
+  }, []);
 
   // The sent bar hides while a field has focus (the keyboard is up), as on Android. A focused input that a render
   // removes fires no focusout in Chrome, so the real focus is read again after every commit, and after each focus
@@ -821,7 +824,9 @@ function WelcomeScreen({ onContinue }) {
     setStuck(true);
     setWaited(true);
   };
-  const goOn = stuck && !done ? "Ne uspevaš? Nastavi iz pretraživača" : null;
+  // After "Instaliraj", nothing confirms that an icon appeared; whoever is still here a minute later
+  // didn't get one, so going on is offered then too.
+  const goOn = stuck && install.stage !== "installing" ? "Ne uspevaš? Nastavi iz pretraživača" : null;
   return html`
     <header class="welcome-hero">
       <img class="welcome-icon" src="icons/icon-any.svg" alt="" width="48" height="48" />
@@ -855,11 +860,12 @@ function InstallSteps({ waited, onStuck }) {
   const install = useInstall();
   const showingSteps =
     install.stage === "none" && !install.alreadyInstalled && (isIos(navigator) || (!install.prompt && waited));
+  const installed = install.stage === "installed" || install.alreadyInstalled;
   useEffect(() => {
-    if (!showingSteps) return;
+    if (!showingSteps && !installed) return;
     const timer = setTimeout(onStuck, STUCK_SECONDS * 1000);
     return () => clearTimeout(timer);
-  }, [showingSteps]);
+  }, [showingSteps, installed]);
 
   if (install.alreadyInstalled) return html`<${InstalledCard} stage="installed" already />`;
   if (install.stage !== "none") return html`<${InstalledCard} stage=${install.stage} />`;
@@ -1016,6 +1022,13 @@ function WarningIcon() {
  * Setup and the main screen, for whoever set the app up in there, it warns that the data stays
  * apart from Chrome and Safari. */
 function InAppBrowserWarning({ welcome = false, onStuck = () => {} }) {
+  // When neither the button nor the menu gets out of the app's browser, going on in it is offered after
+  // a while, as with the install steps.
+  useEffect(() => {
+    if (!IN_APP_BROWSER || !welcome) return;
+    const timer = setTimeout(onStuck, STUCK_SECONDS * 1000);
+    return () => clearTimeout(timer);
+  }, []);
   if (!IN_APP_BROWSER) return null;
   const ios = isIos(navigator);
 

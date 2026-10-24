@@ -36,10 +36,13 @@ export function normalizeName(text) {
   return collapsed.length > 0 ? collapsed : null;
 }
 
-/** 6–15 digits after removing spaces, dashes, dots and parentheses; one leading + is allowed. */
+/**
+ * 6–15 digits after removing spaces, dashes, dots, slashes ("064/123-4567") and parentheses, and the
+ * invisible direction marks that contacts and copied text can carry; one leading + is allowed.
+ */
 export function normalizePhone(text) {
   if (typeof text !== "string") return null;
-  const stripped = text.replace(/[\s\-.()]/g, "");
+  const stripped = text.replace(/[\s\-.()/\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
   return /^\+?[0-9]{6,15}$/.test(stripped) ? stripped : null;
 }
 

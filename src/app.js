@@ -38,7 +38,12 @@ function withoutIssue(issues, action) {
 function calculateWithClock(currentState, store, now) {
   const minutes = getMinutes(now);
   const suggested = suggestedSlot(minutes, sentSlots(currentState.log));
-  const expired = currentState.drafts.izlaznostSlot != null && currentState.drafts.izlaznostSlotFor !== suggested;
+  // A chosen hour holds until the suggestion moves on; an hour with a count typed for it holds until the
+  // count is sent or cleared, so a count typed at 18:44 for 18h isn't sent as 19h at 18:45.
+  const expired =
+    currentState.drafts.izlaznostSlot != null &&
+    currentState.drafts.izlaznostSlotFor !== suggested &&
+    !currentState.drafts.izlaznost;
   let nextDrafts = currentState.drafts;
   if (expired) {
     nextDrafts = { ...nextDrafts, izlaznostSlot: null, izlaznostSlotFor: null };
@@ -266,7 +271,13 @@ export function createApp({ store, now = () => new Date(), electionDay = ELECTIO
     },
 
     setIzlaznost(text) {
-      edit("izlaznost", (d) => ({ ...d, izlaznost: digits(text) }));
+      const count = digits(text);
+      // The hour on screen when a count is typed is kept with it (see calculateWithClock).
+      edit("izlaznost", (d) =>
+        count === "" || d.izlaznostSlot != null
+          ? { ...d, izlaznost: count }
+          : { ...d, izlaznost: count, izlaznostSlot: state.selectedSlot, izlaznostSlotFor: state.selectedSlot },
+      );
     },
 
     setVanBm(text) {

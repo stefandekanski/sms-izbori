@@ -20,6 +20,7 @@ const ASSETS = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
+  "./video/slanje.jpg",
 ];
 
 self.addEventListener("install", (event) => {
@@ -49,8 +50,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   // The guide's videos go to the network as if there were no worker: Safari on iPhone plays a video only
-  // from answers to its range requests, which a cached copy doesn't give.
-  if (new URL(event.request.url).pathname.includes("/video/")) return;
+  // from answers to its range requests, which a cached copy doesn't give. Their cover pictures are cached.
+  if (new URL(event.request.url).pathname.endsWith(".mp4")) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     // Navigations may carry tracking parameters from the app that shared the link. A page of its own (the

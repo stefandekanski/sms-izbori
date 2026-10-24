@@ -7,6 +7,10 @@
   <meta name="theme-color" content="#1E4C8F" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="icons/icon-any.svg" type="image/svg+xml">
+  <!-- Installing from this page installs the app, with its icon. -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -151,12 +155,16 @@
     const videoToggle = videoBox.querySelector(".guide-video-toggle");
     const videoBar = videoBox.querySelector(".guide-video-progress > div");
     const showVideoState = () => {
-      const playing = !video.paused && !video.ended;
+      const playing = !video.paused && !video.ended && !video.error;
       videoBox.classList.toggle("playing", playing);
       videoToggle.setAttribute("aria-label", playing ? "Zaustavi video" : "Pusti video");
     };
-    const playVideo = () => video.play().catch(showVideoState);
-    for (const name of ["play", "pause", "ended"]) video.addEventListener(name, showVideoState);
+    // The video comes from the network; after a failed load (no signal) the next tap loads it anew.
+    const playVideo = () => {
+      if (video.error) video.load();
+      video.play().catch(showVideoState);
+    };
+    for (const name of ["play", "pause", "ended", "error"]) video.addEventListener(name, showVideoState);
     video.addEventListener("timeupdate", () => {
       videoBar.style.width = (video.currentTime / video.duration) * 100 + "%";
     });

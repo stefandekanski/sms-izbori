@@ -261,6 +261,49 @@ test("AppViewModelTest.choosingTheSuggestedSlot_isNotAChoice", () => {
   assert.equal(app.getState().selectedSlot, 10);
 });
 
+test("AppViewModelTest.typedCount_keepsItsHour_whenTheSuggestionMovesOn", () => {
+  const now = makeClock("18:40");
+  const store = createFakeStore({ profile: petar });
+  const app = createApp({ store, now });
+  assert.equal(app.getState().selectedSlot, 18);
+  app.setIzlaznost("450");
+  now.set("18:46");
+  app.refresh();
+  assert.equal(app.getState().selectedSlot, 18);
+  assert.equal(app.send("izlaznost")?.text, "BM_22; Petar Petrović\nIzlaznost do 18: 450");
+  assert.equal(app.getState().selectedSlot, 19);
+});
+
+test("AppViewModelTest.typedCount_keepsItsHour_inANewViewModel", () => {
+  const store = createFakeStore({ profile: petar });
+  createApp({ store, now: makeClock("18:40") }).setIzlaznost("450");
+  assert.equal(createApp({ store, now: makeClock("18:50") }).getState().selectedSlot, 18);
+});
+
+test("AppViewModelTest.typedCount_keepsItsHour_afterACancelledSend", () => {
+  const now = makeClock("18:40");
+  const store = createFakeStore({ profile: petar });
+  const app = createApp({ store, now });
+  app.setIzlaznost("450");
+  app.send("izlaznost");
+  now.set("18:46");
+  app.undo();
+  app.refresh();
+  assert.equal(app.getState().selectedSlot, 18);
+  assert.equal(app.getState().drafts.izlaznost, "450");
+});
+
+test("AppViewModelTest.clearedCount_followsTheClockAgain", () => {
+  const now = makeClock("18:40");
+  const store = createFakeStore({ profile: petar });
+  const app = createApp({ store, now });
+  app.setIzlaznost("450");
+  app.setIzlaznost("");
+  now.set("18:46");
+  app.refresh();
+  assert.equal(app.getState().selectedSlot, 19);
+});
+
 test("AppViewModelTest.chosenSlot_survivesANewViewModel_whileTheSuggestionHolds", () => {
   const store = createFakeStore({ profile: petar });
   createApp({ store, now: makeClock("10:05") }).selectSlot(8);
